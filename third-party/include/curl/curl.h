@@ -386,7 +386,7 @@ typedef int (*curl_trailer_callback)(struct curl_slist **list,
 
 typedef enum {
   CURLSOCKTYPE_IPCXN,  /* socket created for a specific IP connection */
-  CURLSOCKTYPE_ACCEPT, /* socket created by accept() line_option_call */
+  CURLSOCKTYPE_ACCEPT, /* socket created by accept() call */
   CURLSOCKTYPE_LAST    /* never use */
 } curlsocktype;
 
@@ -2132,6 +2132,9 @@ typedef enum {
    * (in seconds) */
   CURLOPT(CURLOPT_MAXLIFETIME_CONN, CURLOPTTYPE_LONG, 314),
 
+  /* Set MIME option flags. */
+  CURLOPT(CURLOPT_MIME_OPTIONS, CURLOPTTYPE_LONG, 315),
+
   CURLOPT_LASTENTRY /* the last unused */
 } CURLoption;
 
@@ -2290,6 +2293,9 @@ CURL_EXTERN int curl_strnequal(const char *s1, const char *s2, size_t n);
 /* Mime/form handling support. */
 typedef struct curl_mime      curl_mime;      /* Mime context. */
 typedef struct curl_mimepart  curl_mimepart;  /* Mime part context. */
+
+/* CURLMIMEOPT_ defines are for the CURLOPT_MIME_OPTIONS option. */
+#define CURLMIMEOPT_FORMESCAPE  (1<<0) /* Use backslash-escaping for forms. */
 
 /*
  * NAME curl_mime_init()
@@ -2595,7 +2601,7 @@ CURL_EXTERN void curl_free(void *p);
  * DESCRIPTION
  *
  * curl_global_init() should be invoked exactly once for each application that
- * uses libcurl and before any line_option_call of other libcurl functions.
+ * uses libcurl and before any call of other libcurl functions.
  *
  * This function is not thread-safe!
  */
@@ -3084,7 +3090,7 @@ CURL_EXTERN CURLcode curl_easy_pause(CURL *handle, int bitmask);
 #include "typecheck-gcc.h"
 #else
 #if defined(__STDC__) && (__STDC__ >= 1)
-/* This preprocessor magic that replaces a line_option_call with the exact same line_option_call is
+/* This preprocessor magic that replaces a call with the exact same call is
    only done to make sure application authors pass exactly three arguments
    to these functions. */
 #define curl_easy_setopt(handle,opt,param) curl_easy_setopt(handle,opt,param)

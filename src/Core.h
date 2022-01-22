@@ -35,30 +35,20 @@ public:
      * merge the patch to the second content
      * */
     void mergePatch(std::string p,std::string o,std::string &dest);
-    static Core *getInstance();
-    int deployServer();
-    int launchServer();
-    int utils();
-    int about();
-
-private:
-    static Core *INSTANCE;
 };
+
+
 #define VERSION_MANIFEST_URL "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 #define OFFICIAL_META_URL "https://launchermeta.mojang.com"
 #define OFFICIAL_URL "https://launcher.mojang.com"
 #define MCBBS_URL "https://download.mcbbs.net"
 #define BMCLAPI_URL "https://bmclapi2.bangbang93.com"
-class DeployServer{
-public:
-    static DeployServer* getInstance();
-    int deployVanilla();
-    int deployBukkitOrSpigot();
-    int deployForge();
-    int deployFabric();
-
-private:
-    static DeployServer *INSTANCE;
-    DeployServer();
-    ~DeployServer();
-};
+//Functions:
+int deploy_server(void *data);
+int start_server(void* data);
+int utils(void* data);
+int about(void* data);
+int deploy_vanilla(void *data);
+int deploy_bukkit_or_spigot(void *data);
+int deploy_forge(void *data);
+int deploy_fabric(void *data);

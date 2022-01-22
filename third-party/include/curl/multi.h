@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2020, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2021, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -59,7 +59,7 @@ typedef void CURLM;
 #endif
 
 typedef enum {
-  CURLM_CALL_MULTI_PERFORM = -1, /* please line_option_call curl_multi_perform() or
+  CURLM_CALL_MULTI_PERFORM = -1, /* please call curl_multi_perform() or
                                     curl_multi_socket*() soon */
   CURLM_OK,
   CURLM_BAD_HANDLE,      /* the passed-in handle is not a valid CURLM handle */
@@ -73,7 +73,8 @@ typedef enum {
   CURLM_RECURSIVE_API_CALL, /* an api function was called from inside a
                                callback */
   CURLM_WAKEUP_FAILURE,  /* wakeup is unavailable or failed */
-  CURLM_BAD_FUNCTION_ARGUMENT,  /* function called with a bad parameter */
+  CURLM_BAD_FUNCTION_ARGUMENT, /* function called with a bad parameter */
+  CURLM_ABORTED_BY_CALLBACK,
   CURLM_LAST
 } CURLMcode;
 
@@ -192,7 +193,7 @@ CURL_EXTERN CURLMcode curl_multi_poll(CURLM *multi_handle,
 /*
  * Name:     curl_multi_wakeup()
  *
- * Desc:     wakes up a sleeping curl_multi_poll line_option_call.
+ * Desc:     wakes up a sleeping curl_multi_poll call.
  *
  * Returns:  CURLMcode type, general multi error code.
  */

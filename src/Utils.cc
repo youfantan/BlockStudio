@@ -8,6 +8,7 @@
 #include <iostream>
 #include "openssl/md5.h"
 #include "openssl/sha.h"
+#include "compile_config.h"
 #ifdef WINDOWS
 #include <windows.h>
 #include <mutex>

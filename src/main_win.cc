@@ -10,27 +10,45 @@
 #include "RangedDownload.h"
 #include "Config.h"
 #include <cstdlib>
-#include <tar.hpp>
+#include "TaskQueue.h"
 using namespace std;
-int mainMenu();
-int chooseLanguage();
-int main() {
+int main_menu(void* data);
+int choose_language(void* data);
+void registerTasks();
+int count=0;
+int main(){
     setbuf(stdout, nullptr);
     //init and register event bus
     atexit(ApplicationEventBus::beforeClose);
     IOUtils::createDirIfNotExists("servers");
     IOUtils::createFileIfNotExists("blockstudio.config");
-    Config *global=new Config("blockstudio.config");
+    auto *global=new Config("blockstudio.config");
     GlobalVars::setGlobalConfig(global);
     Log::INIT();
     RangedDownload::INIT();
     Localizer::getInstance()->setValue("OPTION_TIPS","");
     Localizer::getInstance()->setValue("OPTION_NOT_NUMBER","");
-    chooseLanguage();
-    return mainMenu();
-
+    registerTasks();
+    TaskQueue::executeTask("choose_language",nullptr);
+    TaskQueue::executeTask("main_menu", nullptr);
+    while (TaskQueue::hasRemain()){
+        TaskQueue::executeOneFromQueue();
+    }
+    return 0;
 }
-int chooseLanguage(){
+void registerTasks(){
+    TaskQueue::addTask("choose_language",&choose_language);
+    TaskQueue::addTask("main_menu",&main_menu);
+    TaskQueue::addTask("deploy_server",&deploy_server);
+    TaskQueue::addTask("deploy_vanilla",&deploy_vanilla);
+    TaskQueue::addTask("deploy_bukkit_or_spigot",&deploy_bukkit_or_spigot);
+    TaskQueue::addTask("deploy_forge",&deploy_forge);
+    TaskQueue::addTask("deploy_fabric",&deploy_fabric);
+    TaskQueue::addTask("start_server",start_server);
+    TaskQueue::addTask("utils",&utils);
+    TaskQueue::addTask("about",&about);
+}
+int choose_language(void* data){
     //choose language and load language file
     vector<string> path;
     int depth=1;
@@ -40,20 +58,20 @@ int chooseLanguage(){
         return -1;
     }
     Options choose_language;
-    choose_language.setTitle("Please choose the language you want to use 请选择你想要使用的语言");
+    choose_language.setTitle("Please choose the language you want to use.请选择你想要使用的语言");
     for (int i = 0; i < path.size(); ++i) {
         choose_language.addOption(path[i].c_str());
     }
     int num;
     int ret=choose_language.getRetVal(num);
     if ((num+1)>path.size()||ret==-1){
-        chooseLanguage();
-        return false;
+        TaskQueue::executeTask("choose_language", nullptr);
+        return 0;
     }
     Localizer::getInstance()->loadLanguageFile(path[num]);
     return 0;
 }
-int mainMenu(){
+int main_menu(void* data){
     int main_menu;
     Options options;
     options.setTitle(Localizer::getInstance()->getString("MAIN_MENU"));
@@ -64,29 +82,28 @@ int mainMenu(){
     options.addOption(Localizer::getInstance()->getString("MENU_EXIT"));
     int n=options.getRetVal(main_menu);
     if (n==-1){
-        mainMenu();
+        TaskQueue::executeTask("main_menu", nullptr);
         return 0;
     }
-    int ret;
     switch (main_menu) {
         case 0:
         {
-            ret=Core::getInstance()->deployServer();
+            TaskQueue::executeTask("deploy_server", nullptr);
             break;
         }
         case 1:
         {
-            ret=Core::getInstance()->launchServer();
+            TaskQueue::executeTask("start_server", nullptr);
             break;
         }
         case 2:
         {
-            ret=Core::getInstance()->utils();
+            TaskQueue::executeTask("utils", nullptr);
             break;
         }
         case 3:
         {
-            ret=Core::getInstance()->about();
+            TaskQueue::executeTask("about", nullptr);
             break;
         }
         case 4:
@@ -95,18 +112,7 @@ int mainMenu(){
         }
         default:
         {
-            ret=1;
-            break;
-        }
-    }
-    switch (ret) {
-        case 0:
-            return 0;
-        case -1:
-            return -1;
-        case 1:
-        {
-            mainMenu();
+            TaskQueue::executeTask("main_menu", nullptr);
             break;
         }
     }

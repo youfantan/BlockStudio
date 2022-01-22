@@ -4,6 +4,9 @@ void Config::saveKey(std::string k, std::string v) {
     fwrite(finalStr.c_str(),finalStr.size(),1,f);
 }
 void Config::getKey(char *buffer) {
+    if (buffer[0]=='/'&&buffer[1]=='/'){
+        return;
+    }
     bool isLeft=true;
     char left[1024];
     char right[1024];
@@ -43,6 +46,10 @@ const char *Config::getCharPtr(std::string k) {
 }
 
 std::string Config::getString(std::string k) {
+    if (kv.find(k)==kv.end()){
+        return nullptr;
+
+    }
     return kv[k];
 }
 

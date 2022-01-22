@@ -8,6 +8,7 @@
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "RangedDownload.h"
+#include "TaskQueue.h"
 #include <sstream>
 #include <cstring>
 #include <iostream>
@@ -139,7 +140,7 @@ void Core::mergePatch(std::string p, std::string o, string &dest) {
     i2.close();
 }
 
-int Core::deployServer() {
+int deploy_server(void *data){
     Options option;
     option.setTitle(Localizer::getInstance()->getString("CORE_DEPLOY_SERVER"));
     option.addOption(Localizer::getInstance()->getString("CORE_DEPLOY_SERVER_FIRST"));
@@ -149,45 +150,63 @@ int Core::deployServer() {
     option.addOption(Localizer::getInstance()->getString("CORE_DEPLOY_SERVER_FIFTH"));
     option.addOption(Localizer::getInstance()->getString("MENU_LAST"));
     int ret;
-    option.getRetVal(ret);
+    int n=option.getRetVal(ret);
+    if (n==-1){
+        TaskQueue::executeTask("deploy_server",nullptr);
+        return 0;
+    }
     switch (ret) {
         case 0:
         {
-            return DeployServer::getInstance()->deployVanilla();
+            TaskQueue::executeTask("deploy_vanilla", nullptr);
+            return 0;
         }
         case 1:
         {
+            TaskQueue::executeTask("deploy_bukkit_or_spigot",nullptr);
             return 0;
         }
         case 2:
         {
+            TaskQueue::executeTask("deploy_bukkit_or_spigot",nullptr);
             return 0;
         }
         case 3:
         {
+            TaskQueue::executeTask("deploy_bukkit_or_spigot",nullptr);
             return 0;
         }
         case 4:
         {
+            TaskQueue::executeTask("deploy_bukkit_or_spigot",nullptr);
             return 0;
         }
         case 5:
         {
-            return 1;
+            TaskQueue::executeTask("main_menu",nullptr);
+            return 0;
         }
         default:
         {
-            deployServer();
+            TaskQueue::executeTask("deploy_server",nullptr);
             return 0;
         }
     }
 }
-
-int Core::launchServer() {
-return 0;
+int start_server(void* data){
+    return 0;
 }
-
-int Core::utils() {
+int extractLicence(){
+    char *p = _binary_THIRD_PARTY_LICENCE_start;
+    FILE *f= fopen("THIRD_PARTY_LICENCE","wb+");
+    while(p != _binary_THIRD_PARTY_LICENCE_end){
+        fwrite(p, 1,1,f);
+        p++;
+    }
+    fclose(f);
+    return 0;
+}
+int utils(void* data){
     Options option;
     option.setTitle(Localizer::getInstance()->getString("CORE_UTILS"));
     option.addOption(Localizer::getInstance()->getString("CORE_UTILS_FIRST"));
@@ -211,26 +230,16 @@ int Core::utils() {
         }
         case 3:
         {
-            return 1;
+            TaskQueue::executeTask("main_menu", nullptr);
         }
         default:
         {
-            utils();
+            TaskQueue::executeTask("utils",nullptr);
             return 0;
         }
     }
 }
-int extractLicence(){
-    char *p = _binary_THIRD_PARTY_LICENCE_start;
-    FILE *f= fopen("THIRD_PARTY_LICENCE","wb+");
-    while(p != _binary_THIRD_PARTY_LICENCE_end){
-        fwrite(p, 1,1,f);
-        p++;
-    }
-    fclose(f);
-    return 0;
-}
-int Core::about() {
+int about(void* data){
     char licence[40000]={0};
     FILE *f= fopen("THIRD_PARTY_LICENCE","r");
     if (!f){
@@ -241,14 +250,7 @@ int Core::about() {
     printf("%s\n%s\n%s\n",Localizer::getInstance()->getString("ABOUT").c_str(),Localizer::getInstance()->getString("THIRD_PARTY_LICENCE").c_str(),licence);
     return 0;
 }
-Core *Core::INSTANCE;
-Core *Core::getInstance() {
-    if (INSTANCE== nullptr){
-        INSTANCE=new Core();
-    }
-    return INSTANCE;
-}
-int DeployServer::deployVanilla() {
+int deploy_vanilla(void *data){
     std::string mirrorType=GlobalVars::getGlobalConfig()->getString("UseMirror");
     std::string manifest_url=VERSION_MANIFEST_URL;
     std::string prefix;
@@ -286,13 +288,11 @@ int DeployServer::deployVanilla() {
     for (auto& version:versions.GetArray()){
         char option_value[64]={0};
         std::string type=version["type"].GetString();
-        if (type!="snapshot"){
-            sprintf(option_value,"%s (%s) (%s)",version["id"].GetString(),version["type"].GetString(),version["releaseTime"].GetString());
-            option.addOption(option_value);
-            version_map[count]=version["id"].GetString();
-            url_map[version["id"].GetString()]=version["url"].GetString();
-            count++;
-        }
+        sprintf(option_value,"%s (%s) (%s)",version["id"].GetString(),version["type"].GetString(),version["releaseTime"].GetString());
+        option.addOption(option_value);
+        version_map[count]=version["id"].GetString();
+        url_map[version["id"].GetString()]=version["url"].GetString();
+        count++;
     }
     option.addOption(Localizer::getInstance()->getString("DEPLOY_SERVER_VANILLA_LATEST_RELEASE"));
     option.addOption(Localizer::getInstance()->getString("DEPLOY_SERVER_VANILLA_LATEST_SNAPSHOT"));
@@ -300,18 +300,24 @@ int DeployServer::deployVanilla() {
     int ret;
     int n=option.getRetVal(ret);
     if (n==-1){
-        deployVanilla();
+        TaskQueue::executeTask("deploy_vanilla", nullptr);
         return 0;
     }
     const char* chooseVersion;
     if (ret==versions.Size()+2)
-        return 1;
+    {
+        TaskQueue::executeTask("deploy_server", nullptr);
+        return 0;
+    }
     else if (ret==versions.Size()+1)
         chooseVersion=latest_snapshot.c_str();
     else if (ret==versions.Size())
         chooseVersion=latest_release.c_str();
     else if (ret>versions.Size()+2)
-        return false;
+    {
+        TaskQueue::executeTask("deploy_vanilla", nullptr);
+        return 0;
+    }
     else
     {
         chooseVersion=version_map[ret].c_str();
@@ -360,6 +366,7 @@ int DeployServer::deployVanilla() {
     FileEncoder::GetFileSHA1(serverJar.c_str(),destSHA1);
     if (strcmp(destSHA1,sha1)!=0){
         LOG_ERROR(Localizer::getInstance()->getString("DEPLOY_SERVER_ERROR_SHA1").c_str(),destSHA1,sha1);
+        return -1;
     }
     StringBuffer buffer;
     Writer<StringBuffer> info_writer(buffer);
@@ -378,32 +385,67 @@ int DeployServer::deployVanilla() {
     const char* info=buffer.GetString();
     IOUtils::writeFile(serverConfig.c_str(),info);
     LOG_INFO("%s",Localizer::getInstance()->getString("DEPLOY_SERVER_SUCCESSFUL").c_str());
+    free(manifest_content);
+    free(version_meta);
+    TaskQueue::executeTask("main_menu", nullptr);
     return 0;
 }
-
-int DeployServer::deployBukkitOrSpigot() {
-    return 0;
-}
-
-int DeployServer::deployForge() {
-    return 0;
-}
-
-int DeployServer::deployFabric() {
-    return 0;
-}
-DeployServer *DeployServer::INSTANCE;
-DeployServer *DeployServer::getInstance() {
-    if (INSTANCE== nullptr){
-        INSTANCE=new DeployServer();
+int deploy_bukkit_or_spigot(void *data){
+    Options option;
+    option.setTitle(Localizer::getInstance()->getString("DEPLOY_SERVER_CRAFTBUKKIT_SPIGOT_CHOOSE_BUILD"));
+    const std::string buildToolsApiUrl="https://hub.spigotmc.org/jenkins/job/BuildTools/api/json?tree=allBuilds[id,fullDisplayName,result,timestamp,url]";
+    //long apiLength=IOUtils::getContentLength(buildToolsApiUrl.c_str());
+    //The fuck jenkins didn't return content-length so I have to alloc it manually
+    char *apiContent=(char*) malloc(sizeof(char)*51200);
+    IOUtils::download(buildToolsApiUrl.c_str(),apiContent);
+    Document apiObj;
+    std::map<std::string,std::string> buildUrlMap;
+    std::map<int,std::string> buildIdMap;
+    apiObj.Parse(apiContent);
+    Value &allBuilds=apiObj["allBuilds"];
+    int count=0;
+    for (auto &build:allBuilds.GetArray()) {
+        Value &build_obj=build;
+        std::string result=build_obj["result"].GetString();
+        int64_t time=build_obj["timestamp"].GetInt64();
+        time_t t=time/1000;
+        tm *pt= localtime(&t);
+        char time_c[32]={0};
+        strftime(time_c,32,"%Y-%m-%d %H:%M:%S",pt);
+        const char *name=build_obj["fullDisplayName"].GetString();
+        buildUrlMap[build_obj["id"].GetString()]=build_obj["url"].GetString();
+        buildIdMap[count]=build_obj["id"].GetString();
+        char opt[128]={0};
+        sprintf(opt,"%s (%s) %s",name,time_c,result.c_str());
+        option.addOption(opt);
+        count++;
     }
-    return INSTANCE;
+    option.addOption(Localizer::getInstance()->getString("DEPLOY_SERVER_CRAFTBUKKIT_LATEST_BUILD"));
+    option.addOption(Localizer::getInstance()->getString("MENU_LAST"));
+    int ret;
+    int n=option.getRetVal(ret);
+    if (n==-1){
+        TaskQueue::executeTask("deploy_bukkit_or_spigot", nullptr);
+        return 0;
+    }
+    std::string chooseBuild;
+    if (ret==allBuilds.Size()+1){
+        TaskQueue::executeTask("deploy_server", nullptr);
+        return 0;
+    } else if (ret==allBuilds.Size()){
+        chooseBuild=buildIdMap[0];
+    } else if (ret>allBuilds.Size()+1){
+        TaskQueue::executeTask("deploy_bukkit_or_spigot", nullptr);
+        return 0;
+    } else{
+        chooseBuild=buildIdMap[ret];
+    }
+    LOG_INFO("You Choose %s",buildUrlMap[chooseBuild].c_str());
+    return 0;
 }
-
-DeployServer::DeployServer() {
-
+int deploy_forge(void *data){
+    return 0;
 }
-
-DeployServer::~DeployServer() {
-
+int deploy_fabric(void *data){
+    return 0;
 }
