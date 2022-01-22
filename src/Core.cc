@@ -214,7 +214,10 @@ int utils(void* data){
     option.addOption(Localizer::getInstance()->getString("CORE_UTILS_THIRD"));
     option.addOption(Localizer::getInstance()->getString("MENU_LAST"));
     int ret;
-    option.getRetVal(ret);
+    int n=option.getRetVal(ret);
+    if(n!=0){
+        TaskQueue::executeTask("utils", nullptr);
+    }
     switch (ret) {
         case 0:
         {
@@ -248,6 +251,7 @@ int about(void* data){
     }
     IOUtils::readFile("THIRD_PARTY_LICENCE",licence);
     printf("%s\n%s\n%s\n",Localizer::getInstance()->getString("ABOUT").c_str(),Localizer::getInstance()->getString("THIRD_PARTY_LICENCE").c_str(),licence);
+    TaskQueue::executeTask("menu", nullptr);
     return 0;
 }
 int deploy_vanilla(void *data){
@@ -275,7 +279,6 @@ int deploy_vanilla(void *data){
     long manifest_length=IOUtils::getContentLength(manifest_url.c_str());
     char *manifest_content=(char*) malloc(sizeof(char)*manifest_length+1);
     IOUtils::download(manifest_url.c_str(),manifest_content);
-    printf("%d", strlen(manifest_content));
     Document manifest_object;
     manifest_object.Parse(manifest_content);
     const Value& latest=manifest_object["latest"];
@@ -380,7 +383,9 @@ int deploy_vanilla(void *data){
     info_writer.Key("deployTime");
     info_writer.String(Log::getTime("%d-%02d-%02d %02d:%02d:%02d"));
     info_writer.Key("SHA1");
-    info_writer.Key(sha1);
+    info_writer.String(sha1);
+    info_writer.Key("type");
+    info_writer.String("vanilla");
     info_writer.EndObject();
     const char* info=buffer.GetString();
     IOUtils::writeFile(serverConfig.c_str(),info);
@@ -389,6 +394,35 @@ int deploy_vanilla(void *data){
     free(version_meta);
     TaskQueue::executeTask("main_menu", nullptr);
     return 0;
+}
+
+//This function can be very slow.Can you thought some ways to optimizing?Post it on Pull Request.
+void procApiHtmlSource(char* content,vector<std::string> &dest){
+    for (int i = 0; i < strlen(content); ++i) {
+        if ((content[i]=='h'&&content[i+1]=='r')&&(content[i+2]=='e'&&content[i+3]=='f')){
+            std::string name;
+            int j=1;
+            int point_count=0;
+            bool is_version;
+            char c;
+            while ((c=content[i+5+j])!='\"'){
+                if (c=='/'){
+                    is_version= false;
+                } else{
+                    is_version= true;
+                }
+                if (content[i+5+j]=='.'){
+                    point_count++;
+                }
+                name+=content[i+5+j];
+                j++;
+            }
+            i=i+5+j;
+            if (point_count>1&&is_version){
+                dest.push_back(name);
+            }
+        }
+    }
 }
 int deploy_bukkit_or_spigot(void *data){
     Options option;
@@ -420,7 +454,7 @@ int deploy_bukkit_or_spigot(void *data){
         option.addOption(opt);
         count++;
     }
-    option.addOption(Localizer::getInstance()->getString("DEPLOY_SERVER_CRAFTBUKKIT_LATEST_BUILD"));
+    option.addOption(Localizer::getInstance()->getString("DEPLOY_SERVER_CRAFTBUKKIT_SPIGOT_LATEST_BUILD"));
     option.addOption(Localizer::getInstance()->getString("MENU_LAST"));
     int ret;
     int n=option.getRetVal(ret);
@@ -440,6 +474,147 @@ int deploy_bukkit_or_spigot(void *data){
     } else{
         chooseBuild=buildIdMap[ret];
     }
+    LineOptions getName;
+    getName.setTitle(Localizer::getInstance()->getString("DEPLOY_SERVER_CHOOSE_ARCHIVE_NAME"));
+    getName.setErrorTips(Localizer::getInstance()->getString("DEPLOY_SERVER_NAME_EXISTS"));
+    std::string name;
+    getName.getInput(name,[](std::string in)->bool{
+        std::string path="servers/"+in;
+        if (IOUtils::dirExists(path.c_str())!=0){
+            return false;
+        } else {
+            return true;
+        }
+    });
+    std::string path="servers/"+name;
+    IOUtils::createDir(path.c_str());
+    std::string serverConfig=path+"/config.json";
+    IOUtils::createFile(serverConfig.c_str());
+    std::string buildToolJar= path + "/BuildTools.jar";
+    std::string buildToolsUrl=buildUrlMap[chooseBuild]+"artifact/target/BuildTools.jar";
+    LOG_DEBUG("%s",buildToolsUrl.c_str());
+    RangedDownload buildToolsDownloader(buildToolsUrl.c_str(),buildToolJar.c_str(),16);
+    buildToolsDownloader.execute([](std::vector<node*> nodes,struct info *i)->void{
+        double total=(double)i->total/1048576;
+        double downloaded=(double)i->downloaded/1048576;
+        LOG_INFO(Localizer::getInstance()->getString("RANGED_DOWNLOAD_INFO").c_str(),i->progress*100,i->speed,total,downloaded);
+    });
+    char* versions=(char*) malloc(sizeof(char)*2000000);
+    IOUtils::download("https://hub.spigotmc.org/versions/",versions);
+    std::vector<std::string> jsonUrls;
+    LOG_INFO("%s",Localizer::getInstance()->getString("DEPLOY_SERVER_CRAFTBUKKIT_SPIGOT_WAIT").c_str());
+    procApiHtmlSource(versions,jsonUrls);
+    Options version_option;
+    version_option.setTitle(Localizer::getInstance()->getString("DEPLOY_SERVER_CRAFTBUKKIT_SPIGOT_CHOOSE_VERSION"));
+    for (auto it=jsonUrls.begin();it!=jsonUrls.end();++it){
+        std::string displayName=it->substr(0,it->size()-5);
+        version_option.addOption(displayName);
+    }
+    option.addOption(Localizer::getInstance()->getString("MENU_LAST"));
+    int vRet;
+    int vN=version_option.getRetVal(vRet);
+    if (vN!=0||vRet>jsonUrls.size()){
+        TaskQueue::executeTask("deploy_bukkit_or_spigot", nullptr);
+        return 0;
+    }
+    if (vRet==jsonUrls.size()){
+        TaskQueue::executeTask("deploy_server", nullptr);
+        return 0;
+    }
+    std::string useVersion=jsonUrls[ret].substr(0,jsonUrls[ret].size()-5);
+    std::string mirrorType=GlobalVars::getGlobalConfig()->getString("UseMirror");
+    std::string manifest_url=VERSION_MANIFEST_URL;
+    std::string prefix;
+    std::string meta_prefix;
+    if (mirrorType=="OFFICIAL"){
+        prefix=OFFICIAL_URL;
+        meta_prefix=OFFICIAL_META_URL;
+    } else if (mirrorType=="MCBBS"){
+        prefix=MCBBS_URL;
+        meta_prefix=MCBBS_URL;
+    } else if (mirrorType=="BMCLAPI"){
+        prefix=BMCLAPI_URL;
+        meta_prefix=BMCLAPI_URL;
+    }else {
+        //by default
+        prefix = OFFICIAL_URL;
+        meta_prefix=OFFICIAL_META_URL;
+    }
+    manifest_url.replace(0,31,meta_prefix);
+    long manifest_length=IOUtils::getContentLength(manifest_url.c_str());
+    char *manifest_content=(char*) malloc(sizeof(char)*manifest_length+1);
+    IOUtils::download(manifest_url.c_str(),manifest_content);
+    Document manifest_object;
+    manifest_object.Parse(manifest_content);
+    const Value& latest=manifest_object["latest"];
+    std::string latest_release=latest["release"].GetString();
+    std::string latest_snapshot=latest["snapshot"].GetString();
+    const Value& oversions=manifest_object["versions"];
+    std::map<int ,std::string> version_map;
+    std::map<std::string ,std::string> url_map;
+    int vcount=0;
+    for (auto& version:oversions.GetArray()) {
+        std::string type = version["type"].GetString();
+        version_map[count] = version["id"].GetString();
+        url_map[version["id"].GetString()] = version["url"].GetString();
+        vcount++;
+    }
+    std::string url=url_map[useVersion];
+    std::string vpath="servers/"+name;
+    IOUtils::createDir(vpath.c_str());
+    std::string serverJson= vpath + "/server.json";
+    IOUtils::createFile(serverJson.c_str());
+    std::string workDir=vpath+"/work";
+    IOUtils::createDir(workDir.c_str());
+    std::string serverJar= vpath + "/work/minecraft_server."+useVersion+".jar";
+    IOUtils::createFile(serverJson.c_str());
+    url=url.replace(0,31,meta_prefix);
+    long meta_length=IOUtils::getContentLength(url.c_str());
+    char* version_meta=(char*) malloc(sizeof(char)*meta_length+1);
+    IOUtils::download(url.c_str(),version_meta);
+    IOUtils::writeFile(serverJson.c_str(),version_meta);
+    Document version_object;
+    version_object.Parse(version_meta);
+    Value& downloads=version_object["downloads"];
+    Value& server=downloads["server"];
+    std::string downloadUrl=server["url"].GetString();
+    const char* sha1=server["sha1"].GetString();
+    downloadUrl=downloadUrl.replace(0,27,prefix);
+    LOG_INFO("%s",downloadUrl.c_str());
+    RangedDownload serverDownloader(downloadUrl.c_str(), serverJar.c_str(), GlobalVars::getGlobalConfig()->getInt("ThreadSize"));
+    serverDownloader.execute([](std::vector<node*> nodes, struct info *i)->void{
+        double total=(double)i->total/1048576;
+        double downloaded=(double)i->downloaded/1048576;
+        LOG_INFO(Localizer::getInstance()->getString("RANGED_DOWNLOAD_INFO").c_str(),i->progress*100,i->speed,total,downloaded);
+    });
+    char destSHA1[41]={0};
+    FileEncoder::GetFileSHA1(serverJar.c_str(),destSHA1);
+    if (strcmp(destSHA1,sha1)!=0){
+        LOG_ERROR(Localizer::getInstance()->getString("DEPLOY_SERVER_ERROR_SHA1").c_str(),destSHA1,sha1);
+        return -1;
+    }
+    StringBuffer buffer;
+    Writer<StringBuffer> info_writer(buffer);
+    info_writer.StartObject();
+    info_writer.Key("name");
+    info_writer.String(name.c_str());
+    info_writer.Key("version");
+    info_writer.String(useVersion.c_str());
+    info_writer.Key("url");
+    info_writer.String(url.c_str());
+    info_writer.Key("deployTime");
+    info_writer.String(Log::getTime("%d-%02d-%02d %02d:%02d:%02d"));
+    info_writer.Key("SHA1");
+    info_writer.String(sha1);
+    info_writer.Key("type");
+    info_writer.String("bukkit/spigot");
+    info_writer.EndObject();
+    const char* info=buffer.GetString();
+    IOUtils::writeFile(serverConfig.c_str(),info);
+    LOG_INFO("%s",Localizer::getInstance()->getString("DEPLOY_SERVER_SUCCESSFUL").c_str());
+    free(manifest_content);
+    free(version_meta);
+    TaskQueue::executeTask("main_menu", nullptr);
     LOG_INFO("You Choose %s",buildUrlMap[chooseBuild].c_str());
     return 0;
 }
