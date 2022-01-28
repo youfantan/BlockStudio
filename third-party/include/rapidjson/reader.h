@@ -146,7 +146,7 @@ enum ParseFlag {
     kParseNoFlags = 0,              //!< No flags are set.
     kParseInsituFlag = 1,           //!< In-situ(destructive) parsing.
     kParseValidateEncodingFlag = 2, //!< Validate encoding of JSON strings.
-    kParseIterativeFlag = 4,        //!< Iterative(constant complexity in terms of function line_option_call stack size) parsing.
+    kParseIterativeFlag = 4,        //!< Iterative(constant complexity in terms of function call stack size) parsing.
     kParseStopWhenDoneFlag = 8,     //!< After parsing a complete JSON root from stream, stop further processing the rest of stream. When this flag is used, parser will not generate kParseErrorDocumentRootNotSingular error.
     kParseFullPrecisionFlag = 16,   //!< Parse number in full precision (but slower).
     kParseCommentsFlag = 32,        //!< Allow one-line (//) and multi-line (/**/) comments.
@@ -1326,7 +1326,7 @@ private:
                 exp = -exp;
         }
 
-        // Finish parsing, line_option_call event according to the type of number.
+        // Finish parsing, call event according to the type of number.
         bool cont = true;
 
         if (parseFlags & kParseNumbersAsStringsFlag) {

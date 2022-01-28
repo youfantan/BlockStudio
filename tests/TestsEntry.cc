@@ -6,6 +6,8 @@
 #include "../src/ApplicationEventBus.h"
 #include <winsock2.h>
 #include <random>
+#include <fcntl.h>
+#include <microtar.h>
 
 void IOTests(){
     HEADER("IOTests")
@@ -41,7 +43,7 @@ void IOTests(){
     int depth=-1;
     char cwd[128]={0};
     _getcwd(cwd,128);
-    ASSERT_ZERO(IOUtils::traverseDirectory(cwd,vct,depth,true));
+    ASSERT_ZERO(IOUtils::traverseDirectory(cwd,vct,depth,true,false));
     for (auto & i : vct) {
         LOG_INFO("%s",i.c_str());
     }
@@ -96,25 +98,17 @@ void PatchTests(){
     ASSERT_HEX(new_c, apply_c);
     END()
 }
-long leng=0;
-long latest=0;
 void dl_callback(std::vector<node*> nodes,info* i){
     long total=0;
     for (auto & node : nodes) {
         total+=node->end-node->start;
     }
-    long downloaded=leng-total;
-    double progress=(double)downloaded/leng;
-    double speed=(double)((downloaded-latest)*10)/1048576;
-    latest=downloaded;
-    LOG_INFO("Remain Bytes: %ld Progress: %0.2f%s Speed: %0.2f mb/s",total,progress*100,"%%",speed);
     LOG_INFO("Remain Bytes: %ld Progress: %0.2f%s Speed: %0.2f mb/s",total,i->progress*100,"%%",i->speed);
 }
 void DownloadTests() {
     HEADER("DownloadTests")
     setbuf(stdout, nullptr);
-    RangedDownload download("http://speed.bnchina.com/down2.zip","testdownload.dat",64);
-    leng=download.GetContentLength();
+    RangedDownload download("https://mirrors.tuna.tsinghua.edu.cn/github-release/git-for-windows/git/Git%20for%20Windows%202.34.1/MinGit-2.34.1-busybox-64-bit.zip","git.tar.bz2",64);
     download.execute(dl_callback);
     char downloaded_md5[33]={0};
     FileEncoder::GetFileMD5("testdownload.dat",downloaded_md5);
@@ -158,11 +152,40 @@ void EncoderTests(){
     ASSERT_STRING(origin_sha256,dest_sha256);
     END()
 }
+void EnvironmentTests(){
+    HEADER("EnvironmentTests")
+    std::vector<std::string> git;
+    EnvironmentUtils::whereGitExists(git);
+    for (auto it=git.begin();it!=git.end();++it) {
+        LOG_INFO("GIT: %s",it->substr(0,it->find("\\cmd\\git.exe")).c_str());
+    }
+    std::vector<std::string> java;
+    EnvironmentUtils::whereJavaExists(java);
+    for (auto it=java.begin();it!=java.end();++it) {
+        LOG_INFO("JAVA: %s",it->substr(0,it->find("\\bin\\java.exe")).c_str());
+    }
+
+    END()
+}
+void CompressTests(){
+    HEADER("CompressTests")
+    std::vector<std::string> files;
+    char cwd[255]={0};
+    _getcwd(cwd,255);
+    strcat(cwd,R"(\servers\test\apache-maven-3.6.0)");
+    int depth=-1;
+    IOUtils::traverseDirectory(cwd,files,depth,false,true);
+    FileEncoder::TarEncode(files,"test.tar");
+    FileEncoder::BZip2Decompress("git.tar.bz2","git/");
+    END()
+}
 int main(){
     atexit(ApplicationEventBus::beforeClose);
     Log::INIT();
     IOTests();
-    PatchTests();
-    DownloadTests();
-    EncoderTests();
+    //PatchTests();
+    //DownloadTests();
+    //EncoderTests();
+    EnvironmentTests();
+    CompressTests();
 }

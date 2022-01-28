@@ -15,6 +15,25 @@ void TaskQueue::executeTask(std::string taskName, void *data) {
     LOG_DEBUG("Task %s has been add into pre-execute list",taskName.c_str());
 }
 
+void *syncExecutor(void *data){
+    task_info *info=(task_info*)data;
+    int ret=info->tsk(info->data);
+    if (ret!=0){
+        LOG_WARNING(Localizer::getInstance()->getString("TASK_QUEUE_RETVALUE_NOT_RIGHT").c_str(),info->name.c_str(),ret);
+    }
+    return nullptr;
+}
+
+pthread_t TaskQueue::executeTaskAsync(std::string taskName, void *data) {
+    task_info *info=new task_info;
+    info->name=taskName;
+    info->tsk=TaskMap[taskName];
+    info->data=data;
+    pthread_t tid;
+    pthread_create(&tid, nullptr,syncExecutor,(void*)info);
+    return tid;
+}
+
 bool TaskQueue::hasRemain() {
     if (!Queue.empty()){
         LOG_DEBUG("Task Remain:%d",Queue.size());

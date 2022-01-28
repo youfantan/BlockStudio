@@ -2,19 +2,24 @@
 #include "Utils.h"
 #include "ApplicationEventBus.h"
 #include <string>
-#include "zlib.h"
-#include "curl/curl.h"
+#include <algorithm>
+#include <zlib.h>
+#include <curl/curl.h>
 #include <iomanip>
+#include <bzlib.h>
 #include <iostream>
-#include "openssl/md5.h"
-#include "openssl/sha.h"
-#include "compile_config.h"
+#include <openssl/md5.h>
+#include <openssl/sha.h>
+#include <compile_config.h>
+#include <mutex>
+#include <microtar.h>
 #ifdef WINDOWS
 #include <windows.h>
-#include <mutex>
 #include <io.h>
 #include <sys/stat.h>
 #include <sstream>
+#include <fcntl.h>
+#include <list>
 
 #endif
 
@@ -271,13 +276,6 @@ int FileEncoder::GZipCompress(char *data, long nData, char *dest, long &nDest) {
     }
     return -1;
 }
-FileEncoder *FileEncoder::Instance;
-FileEncoder *FileEncoder::GetInstance() {
-    if (Instance== nullptr){
-        Instance=new FileEncoder();
-    }
-    return Instance;
-}
 const unsigned char FileEncoder::B64EncodeMap[64]=
         {
                 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
@@ -492,7 +490,7 @@ void FileEncoder::GetFileSHA256(const char *path, char *dest) {
     dest[64]='\0';
     fs.close();
 }
-int IOUtils::traverseDirectory(std::string path, std::vector<std::string> &vct, int &depth,bool b) {
+int IOUtils::traverseDirectory(std::string path, std::vector<std::string> &vct, int &depth,bool b,bool useRelativePath) {
     long hFile = 0;
     struct _finddata_t fileinfo;
     std::string p;
@@ -506,14 +504,29 @@ int IOUtils::traverseDirectory(std::string path, std::vector<std::string> &vct, 
                 {
                     depth--;
                     if (b){
-                        vct.push_back(p.assign(path).append("\\").append(fileinfo.name));
+                        std::string absolutePath=p.assign(path).append("\\").append(fileinfo.name);
+                        if (useRelativePath){
+                            char path[255]={0};
+                            _getcwd(path,255);
+                            vct.push_back(absolutePath.replace(0, strlen(path)+1,""));
+                        } else{
+                            vct.push_back(absolutePath);
+                        }
+                    } else{
+                        traverseDirectory(p.assign(path).append("\\").append(fileinfo.name), vct,depth,b,useRelativePath);
                     }
-                    traverseDirectory(p.assign(path).append("\\").append(fileinfo.name), vct,depth,b);
                 }
             }
             else
             {
-                vct.push_back(p.assign(path).append("\\").append(fileinfo.name));
+                std::string absolutePath=p.assign(path).append("\\").append(fileinfo.name);
+                if (useRelativePath){
+                    char path[255]={0};
+                    _getcwd(path,255);
+                    vct.push_back(absolutePath.replace(0, strlen(path)+1,""));
+                } else{
+                    vct.push_back(absolutePath);
+                }
             }
         }while (_findnext(hFile, &fileinfo) == 0&&(depth>0||depth<0));
         _findclose(hFile);
@@ -549,11 +562,10 @@ void IOUtils::appendFile(const char* fileName,const char* content){
     appendFile(fileName,content, strlen(content));
 }
 void IOUtils::readFile(const char* fileName,char* content,long length){
-    FILE* f= fopen(fileName,"rb");
-    memset(content,0,length);
+    ifstream in(fileName,std::ios::in|std::ios::binary);
+    in.read(content,length);
     content[length]='\0';
-    fread(content,length,1,f);
-    fclose(f);
+    in.close();
 }
 //NOT SAFE
 void IOUtils::readFile(const char* fileName,char* content){
@@ -561,10 +573,9 @@ void IOUtils::readFile(const char* fileName,char* content){
     fseek(f,0,SEEK_END);
     long length= ftell(f);
     memset(content,0,length);
-    content[length]='\0';
     fseek(f,0,SEEK_SET);
-    content[length]='\0';
     fread(content,length,1,f);
+    content[length]='\0';
     fclose(f);
 }
 void IOUtils::readFile(FILE *f,char* content,long length){
@@ -588,7 +599,38 @@ int IOUtils::createFile(const char* fileName){
     }
 }
 int IOUtils::createDir(const char* dirName){
-    return mkdir(dirName);
+
+    int i = 0;
+    int iRet;
+    size_t iLen;
+    char* pszDir;
+    if(dirName==nullptr)
+    {
+        return -1;
+    }
+    pszDir = strdup(dirName);
+    iLen = strlen(pszDir);
+    for (i = 0;i < iLen;i ++)
+    {
+        if (pszDir[i] == '\\' || pszDir[i] == '/')
+        {
+            pszDir[i] = '\0';
+            iRet =access(pszDir,0);
+            if (iRet != 0)
+            {
+                iRet = mkdir(pszDir);
+                if (iRet != 0)
+                {
+                    return -1;
+                }
+            }
+            pszDir[i] = '/';
+        }
+    }
+
+    iRet = mkdir(pszDir);
+    free(pszDir);
+    return iRet;
 }
 
 void IOUtils::createDirIfNotExists(const char *dirName) {
@@ -716,4 +758,155 @@ int IOUtils::fileExists(const char* fileName) {
     } else{
         return -1;
     }
+}
+
+size_t IOUtils::getFileContentLength(const char *fileName) {
+    FILE *f= fopen(fileName,"rb");
+    fseek(f,0,SEEK_END);
+    size_t size= ftell(f);
+    fclose(f);
+    return size;
+}
+
+int EnvironmentUtils::whereGitExists(std::vector<std::string> &path) {
+#ifdef WINDOWS
+    FILE* pp = _popen("where git", "r");
+    if (!pp) {
+        return -1;
+    }
+    char tmp[1024];
+    while (fgets(tmp, sizeof(tmp), pp) != NULL) {
+        if (tmp[strlen(tmp) - 1] == '\n') {
+            tmp[strlen(tmp) - 1] = '\0';
+        }
+        std::string str;
+        if (str.find("\\cmd\\git.exe")!=std::string::npos){
+            str=str.substr(0,str.find("\\bin\\java.exe"));
+            path.push_back(str);
+
+        }
+    }
+    _pclose(pp);
+    return 0;
+#endif
+}
+
+int EnvironmentUtils::whereJavaExists(std::vector<std::string> &path) {
+#ifdef WINDOWS
+    FILE* pp = _popen("where java", "r");
+    if (!pp) {
+        return -1;
+    }
+    char tmp[1024];
+    while (fgets(tmp, sizeof(tmp), pp) != NULL) {
+        if (tmp[strlen(tmp) - 1] == '\n') {
+            tmp[strlen(tmp) - 1] = '\0';
+        }
+        path.push_back(tmp);
+    }
+    _pclose(pp);
+    return 0;
+#endif
+}
+
+bool EnvironmentUtils::isX64() {
+    if (sizeof(int*)==8){
+        return true;
+    }
+    return false;
+}
+
+int FileEncoder::BZip2Decompress(const char* fileName,const char* extractPath){
+    FILE *srcFile= fopen(fileName,"rb");
+    if (!srcFile){
+        fclose(srcFile);
+        return -1;
+    }
+    int err;
+    std::string res;
+    BZFILE *bSrcFile= BZ2_bzReadOpen(&err,srcFile,0,0,nullptr,0);
+    if (err!=BZ_OK){
+        BZ2_bzReadClose(&err,bSrcFile);
+        fclose(srcFile);
+        return -2;
+    }
+    char cachePath[64]={0};
+    GetCacheName(cachePath);
+    IOUtils::createFileIfNotExists(cachePath);
+    FILE *cache= fopen(cachePath,"wb");
+    err=BZ_OK;
+    char buffer[1024]={0};
+    while (err==BZ_OK){
+        int len=BZ2_bzRead(&err,bSrcFile,buffer,1024);
+        if (err==BZ_OK){
+            fwrite(buffer, len,1,cache);
+        }
+    }
+    if (err!=BZ_STREAM_END){
+        BZ2_bzReadClose(&err,bSrcFile);
+        fclose(srcFile);
+        return -3;
+    }
+    BZ2_bzReadClose(&err,bSrcFile);
+    fclose(srcFile);
+    fclose(cache);
+    mtar_t tar;
+    mtar_open(&tar,cachePath,"rb");
+    mtar_header_t h;
+    while((mtar_read_header(&tar,&h))!=MTAR_ENULLRECORD){
+        char path[255]={0};
+        strcat(path,extractPath);
+        strcat(path,h.name);
+        if (h.type==MTAR_TREG){
+            char* content=(char*) malloc(sizeof(char)*(h.size+1));
+            mtar_read_data(&tar,content,h.size);
+            std::string s(path);
+            std::string con_path=s.substr(0,s.find_last_of('/'));
+            IOUtils::createDirIfNotExists(con_path.c_str());
+            IOUtils::writeFile(path,content,h.size);
+            free(content);
+        }
+        mtar_next(&tar);
+    }
+    mtar_close(&tar);
+    return 0;
+}
+
+int FileEncoder::TarEncode(std::vector<std::string> compressFiles,const char* destFilePath){
+    char cachePath[64]={0};
+    GetCacheName(cachePath);
+    mtar_t mtar;
+    mtar_open(&mtar, cachePath, "w");
+    std::list<std::string> pathList;
+    for (auto it=compressFiles.begin();it!=compressFiles.end();++it){
+        std::string str=*it;
+        replace(str.begin(),str.end(),'\\','/');
+        std::string path=str.substr(0,str.find_last_of('/'));
+        if(find(pathList.begin(),  pathList.end(),path)==pathList.end()){
+            pathList.push_back(path);
+            mtar_write_dir_header(&mtar, path.c_str());
+        }
+        size_t len=IOUtils::getFileContentLength(str.c_str());
+        char* content=(char*) malloc(sizeof(char)*len+1);
+        IOUtils::readFile(str.c_str(),content);
+        mtar_write_file_header(&mtar, str.c_str(), len);
+        mtar_write_data(&mtar, content, len);
+        free(content);
+    }
+    mtar_finalize(&mtar);
+    mtar_close(&mtar);
+    return 0;
+}
+
+void FileEncoder::GetCacheName(char *dest) {
+    IOUtils::createDirIfNotExists("cache");
+    time_t t= time(0);
+    char cacheName[64]={0};
+    char time[33]={0};
+    sprintf(time,"%lld",t);
+    MD5(time,11,cacheName);
+    char cachePath[64]={0};
+    strcat(cachePath,"cache/");
+    strcat(cachePath,cacheName);
+    strcpy(dest,cachePath);
 }

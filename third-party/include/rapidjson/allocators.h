@@ -32,7 +32,7 @@ RAPIDJSON_NAMESPACE_BEGIN
 
 \code
 concept Allocator {
-    static const bool kNeedFree;    //!< Whether this allocator needs to line_option_call Free().
+    static const bool kNeedFree;    //!< Whether this allocator needs to call Free().
 
     // Allocate a memory block.
     // \param size of the memory block in bytes.
@@ -101,7 +101,7 @@ public:
 template <typename BaseAllocator = CrtAllocator>
 class MemoryPoolAllocator {
 public:
-    static const bool kNeedFree = false;    //!< Tell users that no need to line_option_call Free() with this allocator. (concept Allocator)
+    static const bool kNeedFree = false;    //!< Tell users that no need to call Free() with this allocator. (concept Allocator)
 
     //! Constructor with chunkSize.
     /*! \param chunkSize The size of memory chunk. The default is kDefaultChunkSize.

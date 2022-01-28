@@ -1,0 +1,38 @@
+{
+  "jre": {
+    "8": {
+      "x86": [
+        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/8/jre/x32/windows/OpenJDK8U-jre_x86-32_windows_hotspot_8u312b07.zip"
+      ],
+      "x64": [
+        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/8/jre/x64/windows/OpenJDK8U-jre_x64_windows_hotspot_8u312b07.zip"
+      ]
+    },
+    "16": {
+      "x86": [
+        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/16/jre/x32/windows/OpenJDK16U-jre_x86-32_windows_hotspot_16.0.1_9.zip"
+      ],
+      "x64": [
+        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/16/jre/x64/windows/OpenJDK16U-jre_x64_windows_hotspot_16.0.1_9.zip",
+        "https://download.java.net/java/GA/jdk16.0.1/7147401fd7354114ac51ef3e1328291f/9/GPL/openjdk-16.0.1_windows-x64_bin.zip"
+      ]
+    },
+    "17": {
+      "x86": [
+        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/17/jre/x32/windows/OpenJDK17U-jre_x86-32_windows_hotspot_17.0.1_12.zip"
+      ],
+      "x64": [
+        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/17/jre/x64/windows/OpenJDK17U-jre_x64_windows_hotspot_17.0.1_12.zip",
+        "https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_windows-x64_bin.zip"
+      ]
+    }
+  },
+  "git_for_windows": {
+    "x86": [
+      "https://npm.taobao.org/mirrors/git-for-windows/v2.34.1.windows.1/Git-2.34.1-32-bit.tar.bz2"
+    ],
+    "x64": [
+      "https://npm.taobao.org/mirrors/git-for-windows/v2.34.1.windows.1/Git-2.34.1-64-bit.tar.bz2"
+    ]
+  }
+}

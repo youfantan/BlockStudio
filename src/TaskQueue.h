@@ -15,6 +15,7 @@ class TaskQueue {
 public:
     static void addTask(std::string taskName,task tsk);
     static void executeTask(std::string taskName,void* data);
+    static pthread_t executeTaskAsync(std::string taskName,void* data);
     //following task can only be called by main function
     static bool hasRemain();
     static void executeOneFromQueue();

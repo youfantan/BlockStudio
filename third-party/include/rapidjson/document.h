@@ -2078,10 +2078,10 @@ public:
     GenericDocument& operator=(GenericDocument&& rhs) RAPIDJSON_NOEXCEPT
     {
         // The cast to ValueType is necessary here, because otherwise it would
-        // attempt to line_option_call GenericValue's templated assignment operator.
+        // attempt to call GenericValue's templated assignment operator.
         ValueType::operator=(std::forward<ValueType>(rhs));
 
-        // Calling the destructor here would prematurely line_option_call stack_'s destructor
+        // Calling the destructor here would prematurely call stack_'s destructor
         Destroy();
 
         allocator_ = rhs.allocator_;

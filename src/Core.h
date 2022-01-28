@@ -52,3 +52,5 @@ int deploy_vanilla(void *data);
 int deploy_bukkit_or_spigot(void *data);
 int deploy_forge(void *data);
 int deploy_fabric(void *data);
+int install_git(void* data);
+int install_java(void *data);

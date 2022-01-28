@@ -72,6 +72,7 @@ void* workThread(void* arg){
 }
 
 RangedDownload::RangedDownload(const char *url, const char *savePath, int threadSize) {
+    LOG_DEBUG("Download URL:%s",url);
     RangedDownload::url=url;
     RangedDownload::savePath=savePath;
     RangedDownload::threadSize=threadSize;

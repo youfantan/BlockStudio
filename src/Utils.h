@@ -36,9 +36,10 @@ class FileEncoder{
 public:
     static const unsigned char B64EncodeMap[];
     static const char B64DecodeMap[];
-    static FileEncoder* GetInstance();
-    int GZipCompress(char *data,long nData,char *dest,long &nDest);
-    int GZipDecompress(char *data,long nData,char* dest,long &nDest);
+    static int GZipCompress(char *data,long nData,char *dest,long &nDest);
+    static int GZipDecompress(char *data,long nData,char* dest,long &nDest);
+    static int BZip2Decompress(const char* fileName,const char* extractPath);
+    static int TarEncode(std::vector<std::string> compressFiles,const char* destFilePath);
     static void Base64Encode(char *data, long nData,char* dest,long &nDest);
     static void Base64Decode(char *data, long nData,char* dest,long &nDest);
     static std::string toHex(std::string src);
@@ -50,15 +51,13 @@ public:
     static void GetFileSHA1(const char* path,char* dest);
     static void SHA256(char *data,long nData,char* dest);
     static void GetFileSHA256(const char* path,char* dest);
-
-private:
-    static FileEncoder* Instance;
+    static void GetCacheName(char* dest);
 };
 
 #define BUFFER_SIZE 512
 class IOUtils{
 public:
-    static int traverseDirectory(std::string path,std::vector<std::string> &vct,int &depth,bool includeFolder);
+    static int traverseDirectory(std::string path,std::vector<std::string> &vct,int &depth,bool includeFolder,bool useRelativePath);
     static void writeFile(const char* fileName,const char* content,long length);
     static void writeFile(const char* fileName,const char* content);
     static void writeFile(FILE *f,const char* content,long length);
@@ -74,11 +73,19 @@ public:
     static int createDir(const char* dirName);
     static void createDirIfNotExists(const char* dirName);
     static void createFileIfNotExists(const char* fileName);
+    static size_t getFileContentLength(const char* fileName);
     static void downloadFile(const char* url,const char* savePath);
     static void download(const char* url,char* dest);
     static long getContentLength(const char* url);
     static int dirExists(const char* dirName);
     static int fileExists(const char* fileName);
+};
+
+class EnvironmentUtils{
+public:
+    static int whereGitExists(std::vector<std::string> &path);
+    static int whereJavaExists(std::vector<std::string> &path);
+    static bool isX64();
 };
 
 //@ABANDONED

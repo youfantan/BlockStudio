@@ -21,8 +21,6 @@ Return value of Core.cc functions
  1:Return to last step
 */
 
-extern char _binary_THIRD_PARTY_LICENCE_start[];
-extern char _binary_THIRD_PARTY_LICENCE_end[];
 using namespace std;
 void print_lcs(vector< vector<char>> &b,string x, int i, int j, vector<char> &str)
 {
@@ -196,6 +194,8 @@ int deploy_server(void *data){
 int start_server(void* data){
     return 0;
 }
+extern char _binary_THIRD_PARTY_LICENCE_start[];
+extern char _binary_THIRD_PARTY_LICENCE_end[];
 int extractLicence(){
     char *p = _binary_THIRD_PARTY_LICENCE_start;
     FILE *f= fopen("THIRD_PARTY_LICENCE","wb+");
@@ -251,7 +251,7 @@ int about(void* data){
     }
     IOUtils::readFile("THIRD_PARTY_LICENCE",licence);
     printf("%s\n%s\n%s\n",Localizer::getInstance()->getString("ABOUT").c_str(),Localizer::getInstance()->getString("THIRD_PARTY_LICENCE").c_str(),licence);
-    TaskQueue::executeTask("menu", nullptr);
+    TaskQueue::executeTask("main_menu", nullptr);
     return 0;
 }
 int deploy_vanilla(void *data){
@@ -358,7 +358,6 @@ int deploy_vanilla(void *data){
     std::string downloadUrl=server["url"].GetString();
     const char* sha1=server["sha1"].GetString();
     downloadUrl=downloadUrl.replace(0,27,prefix);
-    LOG_INFO("%s",downloadUrl.c_str());
     RangedDownload download(downloadUrl.c_str(), serverJar.c_str(), GlobalVars::getGlobalConfig()->getInt("ThreadSize"));
     download.execute([](std::vector<node*> nodes,struct info *i)->void{
         double total=(double)i->total/1048576;
@@ -492,7 +491,6 @@ int deploy_bukkit_or_spigot(void *data){
     IOUtils::createFile(serverConfig.c_str());
     std::string buildToolJar= path + "/BuildTools.jar";
     std::string buildToolsUrl=buildUrlMap[chooseBuild]+"artifact/target/BuildTools.jar";
-    LOG_DEBUG("%s",buildToolsUrl.c_str());
     RangedDownload buildToolsDownloader(buildToolsUrl.c_str(),buildToolJar.c_str(),16);
     buildToolsDownloader.execute([](std::vector<node*> nodes,struct info *i)->void{
         double total=(double)i->total/1048576;
@@ -580,17 +578,19 @@ int deploy_bukkit_or_spigot(void *data){
     std::string downloadUrl=server["url"].GetString();
     const char* sha1=server["sha1"].GetString();
     downloadUrl=downloadUrl.replace(0,27,prefix);
-    LOG_INFO("%s",downloadUrl.c_str());
     RangedDownload serverDownloader(downloadUrl.c_str(), serverJar.c_str(), GlobalVars::getGlobalConfig()->getInt("ThreadSize"));
     serverDownloader.execute([](std::vector<node*> nodes, struct info *i)->void{
         double total=(double)i->total/1048576;
         double downloaded=(double)i->downloaded/1048576;
         LOG_INFO(Localizer::getInstance()->getString("RANGED_DOWNLOAD_INFO").c_str(),i->progress*100,i->speed,total,downloaded);
     });
+    pthread_t task_install_git=TaskQueue::executeTaskAsync("install_git", nullptr);
+    pthread_join(task_install_git,nullptr);
     char destSHA1[41]={0};
     FileEncoder::GetFileSHA1(serverJar.c_str(),destSHA1);
     if (strcmp(destSHA1,sha1)!=0){
         LOG_ERROR(Localizer::getInstance()->getString("DEPLOY_SERVER_ERROR_SHA1").c_str(),destSHA1,sha1);
+        TaskQueue::executeTask("deploy_bukkit_or_spigot", nullptr);
         return -1;
     }
     StringBuffer buffer;
@@ -615,12 +615,71 @@ int deploy_bukkit_or_spigot(void *data){
     free(manifest_content);
     free(version_meta);
     TaskQueue::executeTask("main_menu", nullptr);
-    LOG_INFO("You Choose %s",buildUrlMap[chooseBuild].c_str());
+    //LOG_INFO("You Choose %s",buildUrlMap[chooseBuild].c_str());
     return 0;
 }
 int deploy_forge(void *data){
     return 0;
 }
 int deploy_fabric(void *data){
+    return 0;
+}
+extern char _binary_resource_list_json_start[];
+extern char _binary_resource_list_json_end[];
+int extractResourceList(){
+    char *p = _binary_resource_list_json_start;
+    FILE *f= fopen("resource_list.json","wb+");
+    while(p != _binary_resource_list_json_end){
+        fwrite(p, 1,1,f);
+        p++;
+    }
+    fclose(f);
+    return 0;
+}
+int install_git(void* data){
+    std::vector<std::string> gits;
+    EnvironmentUtils::whereGitExists(gits);
+    if (gits.empty()){
+#ifdef WINDOWS
+        LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_GIT_NOT_FOUND_WINDOWS").c_str());
+        //start install git
+        FILE *f= fopen("resource_list.json","r");
+        if (!f){
+            extractResourceList();
+        }
+        size_t length=IOUtils::getFileContentLength("resource_list.json");
+        char* content=(char*) malloc(sizeof(char)*length+1);
+        IOUtils::readFile("resource_list.json",content);
+        Document document;
+        document.Parse(content);
+        Value& git_for_windows=document["git_for_windows"];
+        const char *downloadUrl;
+        if(EnvironmentUtils::isX64()){
+            Value& x64=git_for_windows["x64"];
+            downloadUrl=x64[0].GetString();
+            LOG_INFO("%s",downloadUrl);
+        } else {
+            Value& x86=git_for_windows["x86"];
+            downloadUrl=x86[0].GetString();
+            LOG_INFO("%s",downloadUrl);
+        }
+        char dest[64]={0};
+        FileEncoder::GetCacheName(dest);
+        IOUtils::createFile(dest);
+        RangedDownload serverDownloader(downloadUrl, dest, GlobalVars::getGlobalConfig()->getInt("ThreadSize"));
+        serverDownloader.execute([](std::vector<node*> nodes, struct info *i)->void{
+            double total=(double)i->total/1048576;
+            double downloaded=(double)i->downloaded/1048576;
+            LOG_INFO(Localizer::getInstance()->getString("RANGED_DOWNLOAD_INFO").c_str(),i->progress*100,i->speed,total,downloaded);
+        });
+        FileEncoder::BZip2Decompress(dest,"git/");
+#endif
+#ifdef LINUX
+        LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_GIT_NOT_FOUND_LINUX").c_str());
+#endif
+    }
+    return 0;
+}
+int install_java(void* data){
     return 0;
 }

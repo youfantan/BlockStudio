@@ -47,12 +47,14 @@ void registerTasks(){
     TaskQueue::addTask("start_server",start_server);
     TaskQueue::addTask("utils",&utils);
     TaskQueue::addTask("about",&about);
+    TaskQueue::addTask("install_git",&install_git);
+    TaskQueue::addTask("install_java",&install_java);
 }
 int choose_language(void* data){
     //choose language and load language file
     vector<string> path;
     int depth=1;
-    int res=IOUtils::traverseDirectory("lang",path,depth,false);
+    int res=IOUtils::traverseDirectory("lang",path,depth,false,false);
     if (res==-1||path.size()==0){
         LOG_FATAL("%s","Error!Language files not exists.Please check the completeness.语言文件不存在，请检查文件完整性。");
         return -1;
