@@ -30,7 +30,6 @@ int main(){
     Localizer::getInstance()->setValue("OPTION_NOT_NUMBER","");
     registerTasks();
     TaskQueue::executeTask("choose_language",nullptr);
-    TaskQueue::executeTask("main_menu", nullptr);
     while (TaskQueue::hasRemain()){
         TaskQueue::executeOneFromQueue();
     }
@@ -71,6 +70,7 @@ int choose_language(void* data){
         return 0;
     }
     Localizer::getInstance()->loadLanguageFile(path[num]);
+    TaskQueue::executeTask("main_menu", nullptr);
     return 0;
 }
 int main_menu(void* data){

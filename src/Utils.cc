@@ -20,6 +20,7 @@
 #include <sstream>
 #include <fcntl.h>
 #include <list>
+#include <unzip.h>
 
 #endif
 
@@ -775,15 +776,14 @@ int EnvironmentUtils::whereGitExists(std::vector<std::string> &path) {
         return -1;
     }
     char tmp[1024];
-    while (fgets(tmp, sizeof(tmp), pp) != NULL) {
+    while (fgets(tmp, sizeof(tmp), pp) != nullptr) {
         if (tmp[strlen(tmp) - 1] == '\n') {
             tmp[strlen(tmp) - 1] = '\0';
         }
-        std::string str;
+        std::string str(tmp);
         if (str.find("\\cmd\\git.exe")!=std::string::npos){
-            str=str.substr(0,str.find("\\bin\\java.exe"));
+            str=str.substr(0,str.find("\\cmd\\git.exe"));
             path.push_back(str);
-
         }
     }
     _pclose(pp);
@@ -909,4 +909,79 @@ void FileEncoder::GetCacheName(char *dest) {
     strcat(cachePath,"cache/");
     strcat(cachePath,cacheName);
     strcpy(dest,cachePath);
+}
+int count(char c,const char* src,long len){
+    int count=0;
+    for (int i = 0; i < len; ++i) {
+        if (src[i]==c){
+            count++;
+        }
+    }
+    return count;
+}
+int FileEncoder::ZipDecompress(const char *fileName, const char *extractPath,char* folder) {
+    unzFile zipFile=unzOpen(fileName);
+    if (zipFile== nullptr){
+        return -1;
+    }
+    unz_global_info info;
+    if(unzGetGlobalInfo(zipFile,&info)!=UNZ_OK){
+        unzClose(zipFile);
+        return -1;
+    }
+    char buffer[1024]={0};
+    unsigned long entrySize;
+    int rootDirCount=0;
+    char rootDirName[255]={0};
+    for (int i = 0; i < info.number_entry; ++i) {
+        unz_file_info fInfo;
+        char fileName[255]={0};
+        if (unzGetCurrentFileInfo(zipFile,&fInfo,fileName,255,nullptr,0,nullptr,0)!=UNZ_OK){
+            unzClose(zipFile);
+            return -1;
+        }
+        if (count('/',fileName, strlen(fileName))==1){
+            memcpy(rootDirName,fileName, strlen(fileName));
+            rootDirCount++;
+        }
+        std::string path(extractPath);
+        path=path.append(fileName);
+        if (fileName[strlen(fileName)-1]=='/'){
+            IOUtils::createDirIfNotExists(path.c_str());
+        } else if (fileName[strlen(fileName)-1]!='/'){
+            if (unzOpenCurrentFile(zipFile)!=UNZ_OK){
+                return -1;
+            }
+            FILE *f= fopen(path.c_str(),"wb+");
+            int err=UNZ_OK;
+            do {
+                err= unzReadCurrentFile(zipFile,buffer,1024);
+                if (err<0){
+                    unzCloseCurrentFile(zipFile);
+                    unzClose(zipFile);
+                    return -1;
+                } else if(err>0){
+                    fwrite(buffer,err,1,f);
+                }
+            } while (err>0);
+            fclose(f);
+        }
+        unzCloseCurrentFile(zipFile);
+        if ((i+1)<info.number_entry)
+        {
+            if (unzGoToNextFile(zipFile)!=UNZ_OK){
+                unzClose(zipFile);
+                return -1;
+            }
+        }
+    }
+    if(rootDirCount==1){
+        memcpy(folder,rootDirName, strlen(rootDirName));
+    }
+    unzClose(zipFile);
+    return 0;
+}
+
+int FileEncoder::ZipCompress(std::vector<std::string> compressFiles, const char *destFilePath) {
+    return 0;
 }

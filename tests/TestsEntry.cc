@@ -157,12 +157,12 @@ void EnvironmentTests(){
     std::vector<std::string> git;
     EnvironmentUtils::whereGitExists(git);
     for (auto it=git.begin();it!=git.end();++it) {
-        LOG_INFO("GIT: %s",it->substr(0,it->find("\\cmd\\git.exe")).c_str());
+        LOG_INFO("GIT: %s",it->c_str());
     }
     std::vector<std::string> java;
     EnvironmentUtils::whereJavaExists(java);
     for (auto it=java.begin();it!=java.end();++it) {
-        LOG_INFO("JAVA: %s",it->substr(0,it->find("\\bin\\java.exe")).c_str());
+        LOG_INFO("JAVA: %s",it->c_str());
     }
 
     END()
@@ -182,10 +182,10 @@ void CompressTests(){
 int main(){
     atexit(ApplicationEventBus::beforeClose);
     Log::INIT();
-    IOTests();
+    //IOTests();
     //PatchTests();
     //DownloadTests();
     //EncoderTests();
     EnvironmentTests();
-    CompressTests();
+    //CompressTests();
 }

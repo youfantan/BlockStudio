@@ -12,6 +12,8 @@
 #include <sstream>
 #include <cstring>
 #include <iostream>
+#include <direct.h>
+#include <algorithm>
 
 using namespace rapidjson;
 /*
@@ -353,6 +355,11 @@ int deploy_vanilla(void *data){
     IOUtils::writeFile(serverJson.c_str(),version_meta);
     Document version_object;
     version_object.Parse(version_meta);
+    Value& javaVersion=version_object["javaVersion"];
+    char required_java_version[4];
+    itoa(javaVersion["majorVersion"].GetInt(),required_java_version,10);
+    pthread_t tid=TaskQueue::executeTaskAsync("install_java",(void*)required_java_version);
+    pthread_join(tid,nullptr);
     Value& downloads=version_object["downloads"];
     Value& server=downloads["server"];
     std::string downloadUrl=server["url"].GetString();
@@ -364,6 +371,25 @@ int deploy_vanilla(void *data){
         double downloaded=(double)i->downloaded/1048576;
         LOG_INFO(Localizer::getInstance()->getString("RANGED_DOWNLOAD_INFO").c_str(),i->progress*100,i->speed,total,downloaded);
     });
+    std::vector<std::string> availableJavaPaths=GlobalVars::getAvailableJavaPaths();
+    std::string java_path;
+    if (availableJavaPaths.size()>1){
+        //judge which jre to use
+        Options use_java_version;
+        use_java_version.setTitle(Localizer::getInstance()->getString("DEPLOY_BUKKIT_SPIGOT_CHOOSE_JAVA_VERION"));
+        for (auto it=availableJavaPaths.begin();it!=availableJavaPaths.end();++it){
+            use_java_version.addOption(*it);
+        }
+        int java_version;
+        int n1=use_java_version.getRetVal(java_version);
+        if (n1!=0 || java_version > availableJavaPaths.size() - 1){
+            TaskQueue::executeTask("deploy_bukkit_or_spigot", nullptr);
+            return 0;
+        }
+        java_path=availableJavaPaths[java_version];
+    } else{
+        java_path=availableJavaPaths[0];
+    }
     char destSHA1[41]={0};
     FileEncoder::GetFileSHA1(serverJar.c_str(),destSHA1);
     if (strcmp(destSHA1,sha1)!=0){
@@ -385,6 +411,8 @@ int deploy_vanilla(void *data){
     info_writer.String(sha1);
     info_writer.Key("type");
     info_writer.String("vanilla");
+    info_writer.Key("java_path");
+    info_writer.String(java_path.c_str());
     info_writer.EndObject();
     const char* info=buffer.GetString();
     IOUtils::writeFile(serverConfig.c_str(),info);
@@ -573,6 +601,11 @@ int deploy_bukkit_or_spigot(void *data){
     IOUtils::writeFile(serverJson.c_str(),version_meta);
     Document version_object;
     version_object.Parse(version_meta);
+    Value& javaVersion=version_object["javaVersion"];
+    char required_java_version[4];
+    itoa(javaVersion["majorVersion"].GetInt(),required_java_version,10);
+    pthread_t tid=TaskQueue::executeTaskAsync("install_java",(void*)required_java_version);
+    pthread_join(tid,nullptr);
     Value& downloads=version_object["downloads"];
     Value& server=downloads["server"];
     std::string downloadUrl=server["url"].GetString();
@@ -593,6 +626,65 @@ int deploy_bukkit_or_spigot(void *data){
         TaskQueue::executeTask("deploy_bukkit_or_spigot", nullptr);
         return -1;
     }
+    char current[255]={0};
+    getcwd(current,255);
+    std::string serverDir(current);
+    serverDir=serverDir+"\\servers\\"+name+"\\";
+#ifdef LINUX
+    replace(workDir.begin(),workDir.end(),'\\','/');
+#endif
+    chdir(serverDir.c_str());
+    std::string command;
+#ifdef LINUX
+    command="java -jar BuildTools.jar --rev "+useVersion;
+#endif
+    std::vector<std::string> availableJavaPaths=GlobalVars::getAvailableJavaPaths();
+    std::string java_path;
+    if (availableJavaPaths.size()>1){
+        //judge which java to use
+        Options use_java_version;
+        use_java_version.setTitle(Localizer::getInstance()->getString("DEPLOY_BUKKIT_SPIGOT_CHOOSE_JAVA_VERION"));
+        for (auto it=availableJavaPaths.begin();it!=availableJavaPaths.end();++it){
+            use_java_version.addOption(*it);
+        }
+        int java_version;
+        int n1=use_java_version.getRetVal(java_version);
+        if (n1!=0 || java_version > availableJavaPaths.size() - 1){
+            TaskQueue::executeTask("deploy_bukkit_or_spigot", nullptr);
+            return 0;
+        }
+        java_path=availableJavaPaths[java_version];
+    } else{
+        java_path=availableJavaPaths[0];
+    }
+#ifdef WINDOWS
+    //write in build command file
+    std::string shContent=java_path+"\\bin\\java.exe -jar BuildTools.jar --rev "+useVersion;
+    replace(shContent.begin(),shContent.end(),'\\','/');
+    IOUtils::writeFile("build.sh",shContent.c_str());
+    std::vector<std::string> gitEnv=GlobalVars::getAvailableGitPaths();
+    if (gitEnv.size()>1){
+        //judge which git to use
+        Options use_git_version;
+        use_git_version.setTitle(Localizer::getInstance()->getString("DEPLOY_BUKKIT_SPIGOT_CHOOSE_GIT_VERION"));
+        for (auto it=gitEnv.begin();it!=gitEnv.end();++it){
+            use_git_version.addOption(*it);
+        }
+        int git_version;
+        int n1=use_git_version.getRetVal(git_version);
+        if (n1!=0||git_version>gitEnv.size()-1){
+            TaskQueue::executeTask("deploy_bukkit_or_spigot", nullptr);
+            return 0;
+        }
+        std::string git_path=gitEnv[git_version];
+        command=git_path+R"(\bin\sh.exe build.sh)";
+    } else{
+        std::string git_path=gitEnv[0];
+        command=git_path+R"(\bin\sh.exe build.sh)";
+    }
+#endif
+    system(command.c_str());
+    chdir(current);
     StringBuffer buffer;
     Writer<StringBuffer> info_writer(buffer);
     info_writer.StartObject();
@@ -608,6 +700,8 @@ int deploy_bukkit_or_spigot(void *data){
     info_writer.String(sha1);
     info_writer.Key("type");
     info_writer.String("bukkit/spigot");
+    info_writer.String("java_path");
+    info_writer.String(java_path.c_str());
     info_writer.EndObject();
     const char* info=buffer.GetString();
     IOUtils::writeFile(serverConfig.c_str(),info);
@@ -636,13 +730,37 @@ int extractResourceList(){
     fclose(f);
     return 0;
 }
+extern char _binary_java_details_jar_start[];
+extern char _binary_java_details_jar_end[];
+int extractJavaDetails(){
+    char *p = _binary_java_details_jar_start;
+    FILE *f= fopen("java_details.jar","wb+");
+    while(p != _binary_java_details_jar_end){
+        fwrite(p, 1,1,f);
+        p++;
+    }
+    fclose(f);
+    return 0;
+}
 int install_git(void* data){
     std::vector<std::string> gits;
+    std::vector<std::string> availableGitPaths;
     EnvironmentUtils::whereGitExists(gits);
-    if (gits.empty()){
+    bool haveSh=false;
+    for (auto it=gits.begin();it!=gits.end();++it){
+        std::string shDir=*it+"\\bin\\sh.exe";
+        FILE *f= fopen(shDir.c_str(),"r");
+        if (f){
+            availableGitPaths.push_back(*it);
+            haveSh=true;
+            break;
+        }
+    }
+    if (gits.empty()||!haveSh){
 #ifdef WINDOWS
         LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_GIT_NOT_FOUND_WINDOWS").c_str());
         //start install git
+        IOUtils::createDirIfNotExists("git");
         FILE *f= fopen("resource_list.json","r");
         if (!f){
             extractResourceList();
@@ -672,14 +790,120 @@ int install_git(void* data){
             double downloaded=(double)i->downloaded/1048576;
             LOG_INFO(Localizer::getInstance()->getString("RANGED_DOWNLOAD_INFO").c_str(),i->progress*100,i->speed,total,downloaded);
         });
+        LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_GIT_UNCOMPRESS").c_str());
         FileEncoder::BZip2Decompress(dest,"git/");
+        LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_GIT_DONE_WINDOWS").c_str());
+        char cwd[255]={0};
+        getcwd(cwd,255);
+        strcat(cwd,"\\git");
+        availableGitPaths.emplace_back(cwd);
 #endif
 #ifdef LINUX
-        LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_GIT_NOT_FOUND_LINUX").c_str());
+        LOG_FATAL("%s",Localizer::getInstance()->getString("INSTALL_GIT_NOT_FOUND_LINUX").c_str());
+        exit(0);
 #endif
     }
+    GlobalVars::setAvailableGitPaths(availableGitPaths);
     return 0;
 }
+int startsWith(string s, string sub){
+    return s.find(sub)==0?1:0;
+}
 int install_java(void* data){
+#ifdef WINDOWS
+    char *version=(char*)data;
+    FILE *f= fopen("java_details.json","r");
+    if (!f){
+        extractJavaDetails();
+    }
+    fclose(f);
+    std::vector<std::string> javas;
+    std::vector<std::string> availableJavaPaths;
+    EnvironmentUtils::whereJavaExists(javas);
+    bool hasLimitedJavaVersion= false;
+    for (auto it = javas.begin();it!=javas.end(); it++) {
+        std::string command = *it + " -jar java_details.jar";
+        system(command.c_str());
+        FILE *f = fopen("java_details.json", "r");
+        if (!f) {
+            continue;
+        }
+        size_t length = IOUtils::getFileContentLength("java_details.json");
+        char *content = (char *) malloc(sizeof(char) * length + 1);
+        IOUtils::readFile("java_details.json", content);
+        Document java_details;
+        java_details.Parse(content);
+        std::string java_version = java_details["JavaVersion"].GetString();
+        std::string required_java_version(version);
+        if (startsWith(java_version, "1.8")) {
+            if (stoi(required_java_version) != 8) {
+                continue;
+            }
+        } else if (!startsWith(java_version, required_java_version)) {
+            continue;
+        }
+        availableJavaPaths.emplace_back(java_details["JrePath"].GetString());
+        hasLimitedJavaVersion = true;
+    }
+    if (!hasLimitedJavaVersion){
+        LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_JAVA_NOT_FOUND_WINDOWS").c_str());
+        //start install git
+        IOUtils::createDirIfNotExists("jre");
+        FILE *f= fopen("resource_list.json","r");
+        if (!f){
+            extractResourceList();
+        }
+        size_t length=IOUtils::getFileContentLength("resource_list.json");
+        char* content=(char*) malloc(sizeof(char)*length+1);
+        IOUtils::readFile("resource_list.json",content);
+        Document document;
+        document.Parse(content);
+        Value& jre=document["jre"];
+        const char *useVersion;
+        const char *downloadUrl;
+        std::string required_java_version(version);
+        if (required_java_version=="8"){
+            useVersion="8";
+        } else if (required_java_version=="16"){
+            useVersion="16";
+        } else if (required_java_version=="17"){
+            useVersion="17";
+        } else{
+            LOG_ERROR("%s",Localizer::getInstance()->getString("INSTALL_NOT_SUPPORT_JAVA_VERSION").c_str());
+            exit(0);
+        }
+        if(EnvironmentUtils::isX64()){
+            Value& x64=jre[useVersion]["x64"];
+            downloadUrl=x64[0].GetString();
+        } else {
+            Value& x86=jre[useVersion]["x86"];
+            downloadUrl=x86[0].GetString();
+        }
+        char dest[64]={0};
+        FileEncoder::GetCacheName(dest);
+        IOUtils::createFile(dest);
+        RangedDownload serverDownloader(downloadUrl, dest, GlobalVars::getGlobalConfig()->getInt("ThreadSize"));
+        serverDownloader.execute([](std::vector<node*> nodes, struct info *i)->void{
+            double total=(double)i->total/1048576;
+            double downloaded=(double)i->downloaded/1048576;
+            LOG_INFO(Localizer::getInstance()->getString("RANGED_DOWNLOAD_INFO").c_str(),i->progress*100,i->speed,total,downloaded);
+        });
+        LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_JAVA_UNCOMPRESS").c_str());
+        std::string outPath="jre/";
+        char rootDirName[255]={0};
+        FileEncoder::ZipDecompress(dest,outPath.c_str(),rootDirName);
+        LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_JAVA_DONE_WINDOWS").c_str());
+        char cwd[255]={0};
+        getcwd(cwd,255);
+        strcat(cwd,"\\jre\\");
+        strcat(cwd,rootDirName);
+        availableJavaPaths.emplace_back(cwd);
+    }
+#endif
+#ifdef LINUX
+    LOG_FATAL("%s",Localizer::getInstance()->getString("INSTALL_JAVA_NOT_FOUND_LINUX").c_str());
+    exit(0);
+#endif
+    GlobalVars::setAvailableJavaPaths(availableJavaPaths);
     return 0;
 }
