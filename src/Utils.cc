@@ -786,6 +786,9 @@ int EnvironmentUtils::whereGitExists(std::vector<std::string> &path) {
             path.push_back(str);
         }
     }
+#ifdef ENABLE_DEBUG
+    path.clear();
+#endif
     _pclose(pp);
     return 0;
 #endif
@@ -802,8 +805,11 @@ int EnvironmentUtils::whereJavaExists(std::vector<std::string> &path) {
         if (tmp[strlen(tmp) - 1] == '\n') {
             tmp[strlen(tmp) - 1] = '\0';
         }
-        path.push_back(tmp);
+        path.emplace_back(tmp);
     }
+#ifdef ENABLE_DEBUG
+    path.clear();
+#endif
     _pclose(pp);
     return 0;
 #endif
@@ -912,12 +918,18 @@ void FileEncoder::GetCacheName(char *dest) {
 }
 int count(char c,const char* src,long len){
     int count=0;
+    int subscript;
     for (int i = 0; i < len; ++i) {
         if (src[i]==c){
             count++;
+            subscript=i;
         }
     }
-    return count;
+    if (count==1&&subscript==len-1){
+        return 0;
+    } else {
+        return 1;
+    }
 }
 int FileEncoder::ZipDecompress(const char *fileName, const char *extractPath,char* folder) {
     unzFile zipFile=unzOpen(fileName);
@@ -940,7 +952,7 @@ int FileEncoder::ZipDecompress(const char *fileName, const char *extractPath,cha
             unzClose(zipFile);
             return -1;
         }
-        if (count('/',fileName, strlen(fileName))==1){
+        if (count('/',fileName, strlen(fileName))==0){
             memcpy(rootDirName,fileName, strlen(fileName));
             rootDirCount++;
         }

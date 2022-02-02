@@ -1,38 +1,42 @@
 {
   "jre": {
     "8": {
-      "x86": [
-        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/8/jre/x32/windows/OpenJDK8U-jre_x86-32_windows_hotspot_8u312b07.zip"
-      ],
-      "x64": [
-        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/8/jre/x64/windows/OpenJDK8U-jre_x64_windows_hotspot_8u312b07.zip"
-      ]
+      "x86": {
+        "url": "https://d6.injdk.cn/openjdk/adoptopenjdk/8/OpenJDK8U-jdk_x86-32_windows_hotspot_8u262b10.zip",
+        "md5": "5b2c61f3c4aba49c49c2a684c11bc24e"
+      },
+      "x64": {
+        "url": "https://d6.injdk.cn/openjdk/adoptopenjdk/8/OpenJDK8U-jdk_x64_windows_hotspot_8u262b10.zip",
+        "md5": "78857d758734cad32b5e6948a289bf5a"
+      }
     },
     "16": {
-      "x86": [
-        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/16/jre/x32/windows/OpenJDK16U-jre_x86-32_windows_hotspot_16.0.1_9.zip"
-      ],
-      "x64": [
-        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/16/jre/x64/windows/OpenJDK16U-jre_x64_windows_hotspot_16.0.1_9.zip",
-        "https://download.java.net/java/GA/jdk16.0.1/7147401fd7354114ac51ef3e1328291f/9/GPL/openjdk-16.0.1_windows-x64_bin.zip"
-      ]
+      "x86": {
+        "url":"https://d6.injdk.cn/openjdk/adoptopenjdk/16/OpenJDK16-jdk_x86-32_windows_hotspot_16_36.zip",
+        "md5": "38205cfc6be737f655f1648ff0109c4b"
+      },
+      "x64": {
+        "url":"https://d6.injdk.cn/openjdk/adoptopenjdk/16/OpenJDK16-jdk_x64_windows_hotspot_16_36.zip",
+        "md5": "b901b672ad7341fee275d6768364c8fa"
+      }
     },
     "17": {
-      "x86": [
-        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/17/jre/x32/windows/OpenJDK17U-jre_x86-32_windows_hotspot_17.0.1_12.zip"
-      ],
-      "x64": [
-        "https://mirrors.tuna.tsinghua.edu.cn/AdoptOpenJDK/17/jre/x64/windows/OpenJDK17U-jre_x64_windows_hotspot_17.0.1_12.zip",
-        "https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_windows-x64_bin.zip"
-      ]
+      "x86": {
+        "url": "https://d6.injdk.cn/openjdk/adoptopenjdk/17/OpenJDK17U-jdk_x86-32_windows_hotspot_17.0.1_12.zip",
+        "md5": "230fefc5d4b5176457981da311d8e493"
+      },
+      "x64": {
+        "url":"https://d6.injdk.cn/openjdk/adoptopenjdk/17/OpenJDK17U-jdk_x64_windows_hotspot_17.0.1_12.zip",
+        "md5": "e6fecbdca731f05a407c6c0fb5abad08"
+      }
     }
   },
   "git_for_windows": {
     "x86": [
-      "https://npm.taobao.org/mirrors/git-for-windows/v2.34.1.windows.1/Git-2.34.1-32-bit.tar.bz2"
+      "https://npm.taobao.org/mirrors/git-for-windows/v2.32.0.windows.2/Git-2.32.0-32-bit.tar.bz2"
     ],
     "x64": [
-      "https://npm.taobao.org/mirrors/git-for-windows/v2.34.1.windows.1/Git-2.34.1-64-bit.tar.bz2"
+      "https://npm.taobao.org/mirrors/git-for-windows/v2.32.0.windows.1/Git-2.32.0-64-bit.tar.bz2"
     ]
   }
 }

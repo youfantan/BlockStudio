@@ -1,6 +1,6 @@
 #include "Config.h"
 void Config::saveKey(std::string k, std::string v) {
-    std::string finalStr=k+"="+v;
+    std::string finalStr=k+"="+v+"\n";
     fwrite(finalStr.c_str(),finalStr.size(),1,f);
 }
 void Config::getKey(char *buffer) {
@@ -62,6 +62,7 @@ Config::Config(const char* name) {
 }
 
 Config::~Config() {
+    LOG_INFO("%s","Start to save Config");
     for (auto it=kv.begin();it!=kv.end();++it){
         saveKey(it->first,it->second);
     }

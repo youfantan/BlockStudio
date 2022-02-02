@@ -1,10 +1,10 @@
+#include <winsock2.h>
 #include "UnitTest.hpp"
 #include "../src/PatchDecoder.hpp"
 #include "../src/PatchEncoder.hpp"
 #include "../src/MallocAllocator.hpp"
 #include "../src/RangedDownload.h"
 #include "../src/ApplicationEventBus.h"
-#include <winsock2.h>
 #include <random>
 #include <fcntl.h>
 #include <microtar.h>
@@ -186,6 +186,6 @@ int main(){
     //PatchTests();
     //DownloadTests();
     //EncoderTests();
-    EnvironmentTests();
+    //EnvironmentTests();
     //CompressTests();
 }

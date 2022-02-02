@@ -18,9 +18,14 @@ void registerTasks();
 int count=0;
 int main(){
     setbuf(stdout, nullptr);
+#ifdef WINDOWS
+    //enable utf-8.encode of linux console is utf-8 by default
+    system("chcp 65001");
+#endif
     //init and register event bus
     atexit(ApplicationEventBus::beforeClose);
     IOUtils::createDirIfNotExists("servers");
+    IOUtils::createDirIfNotExists("cache");
     IOUtils::createFileIfNotExists("blockstudio.config");
     auto *global=new Config("blockstudio.config");
     GlobalVars::setGlobalConfig(global);

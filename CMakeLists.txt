@@ -32,6 +32,7 @@ include_directories(third-party/include)
 include_directories(config)
 CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/config/xdiff_config.h.in third-party/include/xdiff_config.h)
 link_directories(lib)
+link_directories(lib/win)
 set(SRC_LIST java_details.o resource_list.o third_party_licence.o cacert.o src/RangedDownload.cc src/RangedDownload.h src/Utils.cc src/Utils.h src/ApplicationEventBus.cc src/ApplicationEventBus.h src/Options.cc src/Options.h src/Localizer.cc src/Localizer.h src/Core.cc src/Core.h src/MallocAllocator.hpp src/PatchDecoder.hpp src/PatchEncoder.hpp src/GlobalVars.cc src/GlobalVars.h src/Config.h src/compile_config.cc src/TaskQueue.cpp src/TaskQueue.h)
 set(THIRD_PARTY_LIST third-party/src/ioapi.c third-party/src/unzip.c)
 #unit test

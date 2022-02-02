@@ -290,10 +290,20 @@ int deploy_vanilla(void *data){
     std::map<int ,std::string> version_map;
     std::map<std::string ,std::string> url_map;
     int count=0;
+    bool enableUnstable;
+    if (GlobalVars::getGlobalConfig()->getString("UseUnstableVersions")=="false"){
+        enableUnstable=false;
+    } else{
+        enableUnstable=true;
+    }
+    LOG_INFO("%s",GlobalVars::getGlobalConfig()->getString("UseUnstableVersions").c_str());
     for (auto& version:versions.GetArray()){
         char option_value[64]={0};
         std::string type=version["type"].GetString();
         sprintf(option_value,"%s (%s) (%s)",version["id"].GetString(),version["type"].GetString(),version["releaseTime"].GetString());
+        if (type!="release"&&!enableUnstable){
+            continue;
+        }
         option.addOption(option_value);
         version_map[count]=version["id"].GetString();
         url_map[version["id"].GetString()]=version["url"].GetString();
@@ -465,6 +475,7 @@ int deploy_bukkit_or_spigot(void *data){
     apiObj.Parse(apiContent);
     Value &allBuilds=apiObj["allBuilds"];
     int count=0;
+    std::string latestSuccessful;
     for (auto &build:allBuilds.GetArray()) {
         Value &build_obj=build;
         std::string result=build_obj["result"].GetString();
@@ -475,6 +486,8 @@ int deploy_bukkit_or_spigot(void *data){
         strftime(time_c,32,"%Y-%m-%d %H:%M:%S",pt);
         const char *name=build_obj["fullDisplayName"].GetString();
         buildUrlMap[build_obj["id"].GetString()]=build_obj["url"].GetString();
+        if(latestSuccessful.empty()&&result=="SUCCESS")
+            latestSuccessful=build_obj["id"].GetString();
         buildIdMap[count]=build_obj["id"].GetString();
         char opt[128]={0};
         sprintf(opt,"%s (%s) %s",name,time_c,result.c_str());
@@ -494,7 +507,7 @@ int deploy_bukkit_or_spigot(void *data){
         TaskQueue::executeTask("deploy_server", nullptr);
         return 0;
     } else if (ret==allBuilds.Size()){
-        chooseBuild=buildIdMap[0];
+        chooseBuild=latestSuccessful;
     } else if (ret>allBuilds.Size()+1){
         TaskQueue::executeTask("deploy_bukkit_or_spigot", nullptr);
         return 0;
@@ -547,7 +560,7 @@ int deploy_bukkit_or_spigot(void *data){
         TaskQueue::executeTask("deploy_server", nullptr);
         return 0;
     }
-    std::string useVersion=jsonUrls[ret].substr(0,jsonUrls[ret].size()-5);
+    std::string useVersion=jsonUrls[vRet].substr(0,jsonUrls[vRet].size()-5);
     std::string mirrorType=GlobalVars::getGlobalConfig()->getString("UseMirror");
     std::string manifest_url=VERSION_MANIFEST_URL;
     std::string prefix;
@@ -658,10 +671,6 @@ int deploy_bukkit_or_spigot(void *data){
         java_path=availableJavaPaths[0];
     }
 #ifdef WINDOWS
-    //write in build command file
-    std::string shContent=java_path+"\\bin\\java.exe -jar BuildTools.jar --rev "+useVersion;
-    replace(shContent.begin(),shContent.end(),'\\','/');
-    IOUtils::writeFile("build.sh",shContent.c_str());
     std::vector<std::string> gitEnv=GlobalVars::getAvailableGitPaths();
     if (gitEnv.size()>1){
         //judge which git to use
@@ -677,10 +686,24 @@ int deploy_bukkit_or_spigot(void *data){
             return 0;
         }
         std::string git_path=gitEnv[git_version];
-        command=git_path+R"(\bin\sh.exe build.sh)";
+        command=git_path+R"(\bin\bash.exe -c ./build.sh)";
+        //write in build command file
+        std::string shContent;
+        shContent.append("export SHELL="+git_path+"\\bin\\sh.exe\n");
+        shContent.append("export PATH=/usr/local/bin:$PATH\n");
+        shContent.append(java_path+"\\bin\\java.exe -Xms512M -Xmx2048M -jar BuildTools.jar --rev "+useVersion);
+        replace(shContent.begin(),shContent.end(),'\\','/');
+        IOUtils::writeFile("build.sh",shContent.c_str());
     } else{
         std::string git_path=gitEnv[0];
-        command=git_path+R"(\bin\sh.exe build.sh)";
+        command=git_path+R"(\bin\bash.exe -c ./build.sh)";
+        //write in build command file
+        std::string shContent;
+        shContent.append("export SHELL="+git_path+"\\bin\\sh.exe\n");
+        shContent.append("export PATH=/usr/local/bin:$PATH\n");
+        shContent.append(java_path+"\\bin\\java.exe -jar BuildTools.jar --rev "+useVersion);
+        replace(shContent.begin(),shContent.end(),'\\','/');
+        IOUtils::writeFile("build.sh",shContent.c_str());
     }
 #endif
     system(command.c_str());
@@ -709,7 +732,6 @@ int deploy_bukkit_or_spigot(void *data){
     free(manifest_content);
     free(version_meta);
     TaskQueue::executeTask("main_menu", nullptr);
-    //LOG_INFO("You Choose %s",buildUrlMap[chooseBuild].c_str());
     return 0;
 }
 int deploy_forge(void *data){
@@ -897,7 +919,21 @@ int install_java(void* data){
         getcwd(cwd,255);
         strcat(cwd,"\\jre\\");
         strcat(cwd,rootDirName);
-        availableJavaPaths.emplace_back(cwd);
+        strcat(cwd,"bin\\java.exe");
+        std::string command(cwd);
+        replace(command.begin(),command.end(),'/','\\');
+        LOG_DEBUG("%s",cwd);
+        command.append(" -jar java_details.jar");
+        system(command.c_str());
+        FILE *f1 = fopen("java_details.json", "r");
+        size_t length1 = IOUtils::getFileContentLength("java_details.json");
+        char *content1 = (char *) malloc(sizeof(char) * length1 + 1);
+        IOUtils::readFile("java_details.json", content1);
+        Document java_details1;
+        java_details1.Parse(content1);
+        const char* jrePath1=java_details1["JrePath"].GetString();
+        availableJavaPaths.emplace_back(jrePath1);
+        GlobalVars::getGlobalConfig()->saveKey("JDK"+required_java_version,jrePath1);
     }
 #endif
 #ifdef LINUX
