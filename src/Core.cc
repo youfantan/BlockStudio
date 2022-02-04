@@ -14,6 +14,7 @@
 #include <iostream>
 #include <direct.h>
 #include <algorithm>
+#include <bitextractor.hpp>
 
 using namespace rapidjson;
 /*
@@ -473,6 +474,7 @@ int deploy_bukkit_or_spigot(void *data){
     std::map<std::string,std::string> buildUrlMap;
     std::map<int,std::string> buildIdMap;
     apiObj.Parse(apiContent);
+    free(apiContent);
     Value &allBuilds=apiObj["allBuilds"];
     int count=0;
     std::string latestSuccessful;
@@ -764,6 +766,30 @@ int extractJavaDetails(){
     fclose(f);
     return 0;
 }
+extern char _binary_7z_32_dll_start[];
+extern char _binary_7z_32_dll_end[];
+int extract7z_32(){
+    char *p = _binary_7z_32_dll_start;
+    FILE *f= fopen("7z.dll","wb+");
+    while(p != _binary_7z_32_dll_end){
+        fwrite(p, 1,1,f);
+        p++;
+    }
+    fclose(f);
+    return 0;
+}
+extern char _binary_7z_64_dll_start[];
+extern char _binary_7z_64_dll_end[];
+int extract7z_64(){
+    char *p = _binary_7z_64_dll_start;
+    FILE *f= fopen("7z.dll","wb+");
+    while(p != _binary_7z_64_dll_end){
+        fwrite(p, 1,1,f);
+        p++;
+    }
+    fclose(f);
+    return 0;
+}
 int install_git(void* data){
     std::vector<std::string> gits;
     std::vector<std::string> availableGitPaths;
@@ -777,6 +803,7 @@ int install_git(void* data){
             haveSh=true;
             break;
         }
+        fclose(f);
     }
     if (gits.empty()||!haveSh){
 #ifdef WINDOWS
@@ -787,11 +814,13 @@ int install_git(void* data){
         if (!f){
             extractResourceList();
         }
+        fclose(f);
         size_t length=IOUtils::getFileContentLength("resource_list.json");
         char* content=(char*) malloc(sizeof(char)*length+1);
         IOUtils::readFile("resource_list.json",content);
         Document document;
         document.Parse(content);
+        free(content);
         Value& git_for_windows=document["git_for_windows"];
         const char *downloadUrl;
         if(EnvironmentUtils::isX64()){
@@ -813,7 +842,11 @@ int install_git(void* data){
             LOG_INFO(Localizer::getInstance()->getString("RANGED_DOWNLOAD_INFO").c_str(),i->progress*100,i->speed,total,downloaded);
         });
         LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_GIT_UNCOMPRESS").c_str());
-        FileEncoder::BZip2Decompress(dest,"git/");
+        bit7z::Bit7zLibrary lib{L"7z.dll"};
+        bit7z::BitExtractor extractor{lib,bit7z::BitFormat::SevenZip};
+        wchar_t* cachePath=new wchar_t[strlen(dest)+1];
+        swprintf(cachePath, strlen(dest)+1,L"%s",dest);
+        extractor.extract(cachePath,L"git");
         LOG_INFO("%s",Localizer::getInstance()->getString("INSTALL_GIT_DONE_WINDOWS").c_str());
         char cwd[255]={0};
         getcwd(cwd,255);
@@ -855,6 +888,7 @@ int install_java(void* data){
         IOUtils::readFile("java_details.json", content);
         Document java_details;
         java_details.Parse(content);
+        free(content);
         std::string java_version = java_details["JavaVersion"].GetString();
         std::string required_java_version(version);
         if (startsWith(java_version, "1.8")) {
@@ -880,6 +914,7 @@ int install_java(void* data){
         IOUtils::readFile("resource_list.json",content);
         Document document;
         document.Parse(content);
+        free(content);
         Value& jre=document["jre"];
         const char *useVersion;
         const char *downloadUrl;
@@ -894,13 +929,21 @@ int install_java(void* data){
             LOG_ERROR("%s",Localizer::getInstance()->getString("INSTALL_NOT_SUPPORT_JAVA_VERSION").c_str());
             exit(0);
         }
+        FILE *serverZipDll= fopen("7z.dll","r");
         if(EnvironmentUtils::isX64()){
             Value& x64=jre[useVersion]["x64"];
-            downloadUrl=x64[0].GetString();
+            downloadUrl=x64["url"].GetString();
+            if (!serverZipDll){
+                extract7z_64();
+            }
         } else {
             Value& x86=jre[useVersion]["x86"];
-            downloadUrl=x86[0].GetString();
+            downloadUrl=x86["url"].GetString();
+            if (!serverZipDll){
+                extract7z_32();
+            }
         }
+        fclose(serverZipDll);
         char dest[64]={0};
         FileEncoder::GetCacheName(dest);
         IOUtils::createFile(dest);

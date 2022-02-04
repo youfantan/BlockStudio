@@ -66,7 +66,7 @@ void* workThread(void* arg){
 #ifdef LINUX
     LOG_DEBUG("Thread ID: %lu Finished Task",gettid())
 #endif
-    RangedDownload *instance=(RangedDownload*)nArg->INSTANCE;
+    auto *instance=(RangedDownload*)nArg->INSTANCE;
     instance->tCount--;
     return 0;
 }
@@ -104,7 +104,7 @@ void RangedDownload::execute(callback c) {
         pthread_create(&i->tid,nullptr, workThread,i);
     }
     long latest=0;
-    info *i=new info;
+    info *i=(info*) malloc(sizeof(info));
     while (true){
         if (tCount==0){
             break;
@@ -125,10 +125,13 @@ void RangedDownload::execute(callback c) {
             Sleep(100);
         }
     }
+    free(i);
     fclose(global);
     for (int i = 0; i < nodes.size(); ++i) {
+        fclose(nodes[i]->file);
         delete nodes[i];
     }
+    curl_global_cleanup();
 }
 
 void* async(void *arg){
@@ -172,7 +175,7 @@ void RangedDownload::INIT() {
     FILE *f;
     f = fopen("cacert.pem", "r");
     if (!f){
-        fclose(f);
         ExtractCA();
     }
+    fclose(f);
 }

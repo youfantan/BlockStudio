@@ -8,6 +8,7 @@
 #include <random>
 #include <fcntl.h>
 #include <microtar.h>
+#include <bitextractor.hpp>
 
 void IOTests(){
     HEADER("IOTests")
@@ -169,14 +170,9 @@ void EnvironmentTests(){
 }
 void CompressTests(){
     HEADER("CompressTests")
-    std::vector<std::string> files;
-    char cwd[255]={0};
-    _getcwd(cwd,255);
-    strcat(cwd,R"(\servers\test\apache-maven-3.6.0)");
-    int depth=-1;
-    IOUtils::traverseDirectory(cwd,files,depth,false,true);
-    FileEncoder::TarEncode(files,"test.tar");
-    FileEncoder::BZip2Decompress("git.tar.bz2","git/");
+    bit7z::Bit7zLibrary lib{L"7z.dll"};
+    bit7z::BitExtractor extractor{lib,bit7z::BitFormat::SevenZip};
+    extractor.extract(L"git.7z",L"git/");
     END()
 }
 int main(){
@@ -187,5 +183,5 @@ int main(){
     //DownloadTests();
     //EncoderTests();
     //EnvironmentTests();
-    //CompressTests();
+    CompressTests();
 }
