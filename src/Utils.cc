@@ -23,7 +23,6 @@
 #include <unzip.h>
 
 #endif
-
 #ifdef LINUX
 #include <signal.h>
 #include <unistd.h>
@@ -822,7 +821,7 @@ bool EnvironmentUtils::isX64() {
     return false;
 }
 
-int FileEncoder::BZip2Decompress(const char* fileName,const char* extractPath){
+int FileEncoder::BZip2FileDecompress(const char* fileName, const char* extractPath){
     FILE *srcFile= fopen(fileName,"rb");
     if (!srcFile){
         fclose(srcFile);
@@ -861,7 +860,7 @@ int FileEncoder::BZip2Decompress(const char* fileName,const char* extractPath){
     mtar_header_t h;
     while((mtar_read_header(&tar,&h))!=MTAR_ENULLRECORD){
         char path[255]={0};
-        strcat(path,extractPath);
+        strcat(path, destName);
         strcat(path,h.name);
         if (h.type==MTAR_TREG){
             char* content=(char*) malloc(sizeof(char)*(h.size+1));
@@ -877,6 +876,8 @@ int FileEncoder::BZip2Decompress(const char* fileName,const char* extractPath){
     mtar_close(&tar);
     return 0;
 }
+
+
 
 int FileEncoder::TarEncode(std::vector<std::string> compressFiles,const char* destFilePath){
     char cachePath[64]={0};
@@ -995,5 +996,21 @@ int FileEncoder::ZipDecompress(const char *fileName, const char *extractPath,cha
 }
 
 int FileEncoder::ZipCompress(std::vector<std::string> compressFiles, const char *destFilePath) {
+    return 0;
+}
+
+int FileEncoder::BZip2FileCompress(const char *fileName, const char *destName) {
+    int compressErr;
+    FILE *dest= fopen(destName,"wb+");
+    BZFILE *bzFile= BZ2_bzWriteOpen(&compressErr,dest,9,0,0);
+    char *buffer=new char[1024];
+    ifstream src_stream(fileName,std::ios::in|std::ios::binary);
+    while (!src_stream.eof()){
+        src_stream.read(buffer,1024);
+        int bytesRead=src_stream.gcount();
+        BZ2_bzWrite(&compressErr,bzFile,buffer, bytesRead);
+    }
+    BZ2_bzWriteClose(&compressErr,bzFile,0, nullptr, nullptr);
+    fclose(dest);
     return 0;
 }

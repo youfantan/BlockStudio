@@ -170,9 +170,12 @@ void EnvironmentTests(){
 }
 void CompressTests(){
     HEADER("CompressTests")
-    bit7z::Bit7zLibrary lib{L"7z.dll"};
-    bit7z::BitExtractor extractor{lib,bit7z::BitFormat::SevenZip};
-    extractor.extract(L"git.7z",L"git/");
+    //deflate compress and uncompress
+    FileEncoder::BZip2FileCompress("7z.dll", "7z.gz");
+    //FileEncoder::GZipDecompress("7z.gz", "7z2.dll");
+    //bit7z::Bit7zLibrary lib{L"7z.dll"};
+    //bit7z::BitExtractor extractor{lib,bit7z::BitFormat::SevenZip};
+    //extractor.extract(L"git.7z",L"git/");
     END()
 }
 int main(){

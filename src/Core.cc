@@ -15,6 +15,7 @@
 #include <direct.h>
 #include <algorithm>
 #include <bitextractor.hpp>
+#include <compile_config.h>
 
 using namespace rapidjson;
 /*
@@ -986,3 +987,97 @@ int install_java(void* data){
     GlobalVars::setAvailableJavaPaths(availableJavaPaths);
     return 0;
 }
+int backup(void *data){
+    Options option;
+    //BACKUP_FUNCTION=请选择备份方式
+    //BACKUP_FULL=完全备份
+    //BACKUP_DIFF=增量备份
+    //BACKUP_DIFF_HELP=帮助
+    //BACKUP_DIFF_ORIGIN_POINT=请选择备份基准点
+    option.setTitle(Localizer::getInstance()->getString("BACKUP_FUNCTION"));
+    option.addOption(Localizer::getInstance()->getString("BACKUP_FULL"));
+    option.addOption(Localizer::getInstance()->getString("BACKUP_DIFF"));
+    option.addOption(Localizer::getInstance()->getString("BACKUP_HELP"));
+    option.addOption(Localizer::getInstance()->getString("MENU_LAST"));
+    int ret;
+    int n=option.getRetVal(ret);
+    if (n!=0){
+        TaskQueue::executeTask("backup",nullptr);
+        return 0;
+    }
+    switch (ret) {
+        case 0:
+            TaskQueue::executeTask("full_backup", nullptr);return 0;
+        case 1:
+            TaskQueue::executeTask("diff_backup", nullptr);return 0;
+        case 2:
+        {
+            TaskQueue::executeTask("backup", nullptr);return 0;
+        }
+        case 3:
+            TaskQueue::executeTask("main_menu", nullptr);return 0;
+    }
+}
+int full_backup(void *data){
+    IOUtils::createDirIfNotExists("backups");
+    Options option;
+    std::vector<std::string> servers;
+    std::vector<std::string> limited_servers;
+    std::map<int,std::string> typeMap;
+    int depth=1;
+    IOUtils::traverseDirectory("servers",servers,depth,true,false);
+    int count=0;
+    for (auto it=servers.begin();it!=servers.end();++it){
+        std::string serverConfig=*it+FILESYSTEM_SEPARATOR+"config.json";
+        FILE *configFile= fopen(serverConfig.c_str(),"rb");
+        if (configFile){
+            Document config;
+            size_t configLength=IOUtils::getFileContentLength(serverConfig.c_str());
+            char* configContent=(char*) malloc(sizeof(char)*configLength+1);
+            IOUtils::readFile(serverConfig.c_str(),configContent);
+            config.Parse(configContent);
+            std::string name=config["name"].GetString();
+            std::string version=config["version"].GetString();
+            std::string deployTime=config["deployTime"].GetString();
+            std::string type=config["type"].GetString();
+            typeMap[count]=type;
+            char option_message[256]={0};
+            sprintf(option_message,"%s (%s) (%s) (%s)",name.c_str(),version.c_str(),deployTime.c_str(),type.c_str());
+            option.addOption(option_message);
+            limited_servers.push_back(*it);
+            count++;
+        }
+        option.addOption("MENU_LAST");
+        int ret;
+        int n=option.getRetVal(ret);
+        if (n!=0){
+            TaskQueue::executeTask("full_backup",nullptr);
+            return 0;
+        }
+        if (ret>count-1){
+            TaskQueue::executeTask("full_backup", nullptr);
+            return 0;
+        } else if (ret==count-1){
+            TaskQueue::executeTask("backup", nullptr);
+        }
+        std::string chooseProfile=limited_servers[ret];
+        std::string type=typeMap[ret];
+        if (type!="bukkit/spigot"){
+            std::string saves=chooseProfile+FILESYSTEM_SEPARATOR+"world";
+            char current[255]={0};
+            getcwd(current,255);
+            chdir(chooseProfile.c_str());
+            char cachePath[64]={0};
+            FileEncoder::GetCacheName(cachePath);
+            std::vector<std::string> files;
+            depth=-1;
+            IOUtils::traverseDirectory(saves,files,depth,false,true);
+            FileEncoder::TarEncode(files,cachePath);
+            std::string backupFileName("backups");
+            backupFileName.append(FILESYSTEM_SEPARATOR);
+            backupFileName.append(Log::getTime("%d-%02d-%02d %02d.%02d.%02d"));
+            FileEncoder::BZip2FileCompress(cachePath,backupFileName.c_str());
+        }
+    }
+}
+int diff_backup(void *data);
