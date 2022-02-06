@@ -9,6 +9,7 @@
 #include "GlobalVars.h"
 #include "RangedDownload.h"
 #include "Config.h"
+#include <windows.h>
 #include <cstdlib>
 #include "TaskQueue.h"
 using namespace std;
@@ -17,6 +18,7 @@ int choose_language(void* data);
 void registerTasks();
 int count=0;
 int main(){
+    HWND hwnd;
     setbuf(stdout, nullptr);
 #ifdef WINDOWS
     //enable utf-8.encode of linux console is utf-8 by default
@@ -53,6 +55,9 @@ void registerTasks(){
     TaskQueue::addTask("about",&about);
     TaskQueue::addTask("install_git",&install_git);
     TaskQueue::addTask("install_java",&install_java);
+    TaskQueue::addTask("backup",&backup);
+    TaskQueue::addTask("full_backup",&full_backup);
+    TaskQueue::addTask("diff_backup",&diff_backup);
 }
 int choose_language(void* data){
     //choose language and load language file

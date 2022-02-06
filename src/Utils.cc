@@ -1,6 +1,7 @@
 #include "Config.h"
 #include "Utils.h"
 #include "ApplicationEventBus.h"
+#include "Localizer.h"
 #include <string>
 #include <algorithm>
 #include <zlib.h>
@@ -860,7 +861,7 @@ int FileEncoder::BZip2FileDecompress(const char* fileName, const char* extractPa
     mtar_header_t h;
     while((mtar_read_header(&tar,&h))!=MTAR_ENULLRECORD){
         char path[255]={0};
-        strcat(path, destName);
+        strcat(path, extractPath);
         strcat(path,h.name);
         if (h.type==MTAR_TREG){
             char* content=(char*) malloc(sizeof(char)*(h.size+1));
@@ -879,23 +880,23 @@ int FileEncoder::BZip2FileDecompress(const char* fileName, const char* extractPa
 
 
 
-int FileEncoder::TarEncode(std::vector<std::string> compressFiles,const char* destFilePath){
-    char cachePath[64]={0};
-    GetCacheName(cachePath);
+int FileEncoder::TarEncode(std::vector<std::string> compressFiles,const char* destFilePath,const char* relativePath){
     mtar_t mtar;
-    mtar_open(&mtar, cachePath, "w");
+    mtar_open(&mtar, destFilePath, "w");
     std::list<std::string> pathList;
     for (auto it=compressFiles.begin();it!=compressFiles.end();++it){
         std::string str=*it;
+        str.replace(0, strlen(relativePath),"");
+        LOG_INFO(Localizer::getInstance()->getString("COMPRESS_PROCESSING").c_str(),str.c_str());
         replace(str.begin(),str.end(),'\\','/');
         std::string path=str.substr(0,str.find_last_of('/'));
         if(find(pathList.begin(),  pathList.end(),path)==pathList.end()){
             pathList.push_back(path);
             mtar_write_dir_header(&mtar, path.c_str());
         }
-        size_t len=IOUtils::getFileContentLength(str.c_str());
+        size_t len=IOUtils::getFileContentLength(it->c_str());
         char* content=(char*) malloc(sizeof(char)*len+1);
-        IOUtils::readFile(str.c_str(),content);
+        IOUtils::readFile(it->c_str(),content);
         mtar_write_file_header(&mtar, str.c_str(), len);
         mtar_write_data(&mtar, content, len);
         free(content);
@@ -913,9 +914,11 @@ void FileEncoder::GetCacheName(char *dest) {
     sprintf(time,"%lld",t);
     MD5(time,11,cacheName);
     char cachePath[64]={0};
-    strcat(cachePath,"cache/");
+    strcat(cachePath,"cache");
+    strcat(cachePath,FILESYSTEM_SEPARATOR);
     strcat(cachePath,cacheName);
     strcpy(dest,cachePath);
+    IOUtils::createFileIfNotExists(cachePath);
 }
 int count(char c,const char* src,long len){
     int count=0;
@@ -1002,6 +1005,7 @@ int FileEncoder::ZipCompress(std::vector<std::string> compressFiles, const char 
 int FileEncoder::BZip2FileCompress(const char *fileName, const char *destName) {
     int compressErr;
     FILE *dest= fopen(destName,"wb+");
+    LOG_INFO(Localizer::getInstance()->getString("COMPRESS_PROCESSING").c_str(),destName);
     BZFILE *bzFile= BZ2_bzWriteOpen(&compressErr,dest,9,0,0);
     char *buffer=new char[1024];
     ifstream src_stream(fileName,std::ios::in|std::ios::binary);

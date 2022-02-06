@@ -225,6 +225,7 @@ int utils(void* data){
     switch (ret) {
         case 0:
         {
+            TaskQueue::executeTask("backup",nullptr);
             return 0;
         }
         case 1:
@@ -602,13 +603,11 @@ int deploy_bukkit_or_spigot(void *data){
         vcount++;
     }
     std::string url=url_map[useVersion];
-    std::string vpath="servers/"+name;
-    IOUtils::createDir(vpath.c_str());
-    std::string serverJson= vpath + "/server.json";
+    std::string serverJson= path + "/server.json";
     IOUtils::createFile(serverJson.c_str());
-    std::string workDir=vpath+"/work";
+    std::string workDir=path+"/work";
     IOUtils::createDir(workDir.c_str());
-    std::string serverJar= vpath + "/work/minecraft_server."+useVersion+".jar";
+    std::string serverJar= path + "/work/minecraft_server."+useVersion+".jar";
     IOUtils::createFile(serverJson.c_str());
     url=url.replace(0,31,meta_prefix);
     long meta_length=IOUtils::getContentLength(url.c_str());
@@ -730,6 +729,7 @@ int deploy_bukkit_or_spigot(void *data){
     info_writer.String(java_path.c_str());
     info_writer.EndObject();
     const char* info=buffer.GetString();
+    LOG_INFO("%s",info);
     IOUtils::writeFile(serverConfig.c_str(),info);
     LOG_INFO("%s",Localizer::getInstance()->getString("DEPLOY_SERVER_SUCCESSFUL").c_str());
     free(manifest_content);
@@ -989,11 +989,6 @@ int install_java(void* data){
 }
 int backup(void *data){
     Options option;
-    //BACKUP_FUNCTION=请选择备份方式
-    //BACKUP_FULL=完全备份
-    //BACKUP_DIFF=增量备份
-    //BACKUP_DIFF_HELP=帮助
-    //BACKUP_DIFF_ORIGIN_POINT=请选择备份基准点
     option.setTitle(Localizer::getInstance()->getString("BACKUP_FUNCTION"));
     option.addOption(Localizer::getInstance()->getString("BACKUP_FULL"));
     option.addOption(Localizer::getInstance()->getString("BACKUP_DIFF"));
@@ -1017,6 +1012,7 @@ int backup(void *data){
         case 3:
             TaskQueue::executeTask("main_menu", nullptr);return 0;
     }
+    return 0;
 }
 int full_backup(void *data){
     IOUtils::createDirIfNotExists("backups");
@@ -1033,6 +1029,9 @@ int full_backup(void *data){
         if (configFile){
             Document config;
             size_t configLength=IOUtils::getFileContentLength(serverConfig.c_str());
+            if (configLength==0){
+                continue;
+            }
             char* configContent=(char*) malloc(sizeof(char)*configLength+1);
             IOUtils::readFile(serverConfig.c_str(),configContent);
             config.Parse(configContent);
@@ -1047,7 +1046,7 @@ int full_backup(void *data){
             limited_servers.push_back(*it);
             count++;
         }
-        option.addOption("MENU_LAST");
+        option.addOption(Localizer::getInstance()->getString("MENU_LAST"));
         int ret;
         int n=option.getRetVal(ret);
         if (n!=0){
@@ -1057,7 +1056,7 @@ int full_backup(void *data){
         if (ret>count-1){
             TaskQueue::executeTask("full_backup", nullptr);
             return 0;
-        } else if (ret==count-1){
+        } else if (ret==count){
             TaskQueue::executeTask("backup", nullptr);
         }
         std::string chooseProfile=limited_servers[ret];
@@ -1065,19 +1064,52 @@ int full_backup(void *data){
         if (type!="bukkit/spigot"){
             std::string saves=chooseProfile+FILESYSTEM_SEPARATOR+"world";
             char current[255]={0};
+            std::string _current(current);
             getcwd(current,255);
-            chdir(chooseProfile.c_str());
             char cachePath[64]={0};
             FileEncoder::GetCacheName(cachePath);
+            chdir(chooseProfile.c_str());
             std::vector<std::string> files;
             depth=-1;
-            IOUtils::traverseDirectory(saves,files,depth,false,true);
-            FileEncoder::TarEncode(files,cachePath);
+            IOUtils::traverseDirectory(saves,files,depth,false,false);
+            chdir(current);
+            saves=_current+FILESYSTEM_SEPARATOR+chooseProfile+FILESYSTEM_SEPARATOR;
+            FileEncoder::TarEncode(files,cachePath,saves.c_str());
             std::string backupFileName("backups");
             backupFileName.append(FILESYSTEM_SEPARATOR);
             backupFileName.append(Log::getTime("%d-%02d-%02d %02d.%02d.%02d"));
             FileEncoder::BZip2FileCompress(cachePath,backupFileName.c_str());
+            std::string backupFilePath=_current+FILESYSTEM_SEPARATOR+backupFileName;
+            LOG_INFO(Localizer::getInstance()->getString("BACKUP_DONE").c_str(),backupFilePath.c_str());
+        } else{
+            char current[255]={0};
+            getcwd(current,255);
+            char cachePath[64]={0};
+            FileEncoder::GetCacheName(cachePath);
+            chdir(chooseProfile.c_str());
+            std::vector<std::string> files;
+            depth=-1;
+            std::string _current(current);
+            std::string saves=_current+FILESYSTEM_SEPARATOR+chooseProfile+FILESYSTEM_SEPARATOR+"world";
+            IOUtils::traverseDirectory(saves,files,depth,false,false);
+            saves=_current+FILESYSTEM_SEPARATOR+chooseProfile+FILESYSTEM_SEPARATOR+"world_nether";
+            IOUtils::traverseDirectory(saves,files,depth,false,false);
+            saves=_current+FILESYSTEM_SEPARATOR+chooseProfile+FILESYSTEM_SEPARATOR+"world_the_end";
+            IOUtils::traverseDirectory(saves,files,depth,false,false);
+            chdir(current);
+            saves=_current+FILESYSTEM_SEPARATOR+chooseProfile+FILESYSTEM_SEPARATOR;
+            FileEncoder::TarEncode(files,cachePath,saves.c_str());
+            std::string backupFileName("backups");
+            backupFileName.append(FILESYSTEM_SEPARATOR);
+            backupFileName.append(Log::getTime("%d_%02d_%02d_%02d.%02d.%02d"));
+            backupFileName.append(".gz");
+            FileEncoder::BZip2FileCompress(cachePath,backupFileName.c_str());
+            std::string backupFilePath=_current+FILESYSTEM_SEPARATOR+backupFileName;
+            LOG_INFO(Localizer::getInstance()->getString("BACKUP_DONE").c_str(),backupFilePath.c_str());
         }
     }
+    return 0;
 }
-int diff_backup(void *data);
+int diff_backup(void *data){
+    return 0;
+}

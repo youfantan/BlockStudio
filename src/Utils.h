@@ -40,7 +40,7 @@ public:
     static int GZipDecompress(char *data,long nData,char* dest,long &nDest);
     static int BZip2FileCompress(const char* fileName, const char* destName);
     static int BZip2FileDecompress(const char* fileName, const char* destName);
-    static int TarEncode(std::vector<std::string> compressFiles,const char* destFilePath);
+    static int TarEncode(std::vector<std::string> compressFiles,const char* destFilePath,const char* relativePath);
     static int ZipDecompress(const char* fileName,const char* extractPath,char* folder);
     static int ZipCompress(std::vector<std::string> compressFiles,const char* destFilePath);
     static void Base64Encode(char *data, long nData,char* dest,long &nDest);
